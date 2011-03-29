@@ -252,7 +252,7 @@ sub get_url {
 sub mkcache {
 	my $url=shift;
 	$url=~s!^http://!!;
-	$url=~s,/,!,;
+	$url=~s,/,!,g;
 
 	$url= ($ENV{TMPDIR} || -d "/tmp" ? "/tmp" : ".")."/GET_".$url;
 	
