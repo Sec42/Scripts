@@ -7,26 +7,52 @@ use LWP::UserAgent;
 use HTTP::Request;
 use Data::Dumper;
 use POSIX qw(strftime setlocale LC_TIME);
+use Encode qw(is_utf8);
+use Carp;
 
 my $cache_file=".get_cache=$<"; # XXX
 
-our $disable_auto_cacheDB=0;
-our $disable_auto_cacheDB_maint=1;
-our $disable_lastmod_guess=0;
-our $skip_errors=0;
-our $verbose=0;
-our %cache;
+$|=1;
 
-sub verbose {
-	$verbose=shift||($verbose+1);
+our %cache;
+our %config=(
+		disable_cachedb =>	0,
+		disable_cachedb_automaint => 1, # Not yet implemented
+		disable_lastmod_guess	=>	0,
+		skip_errors		=>	0,
+		force_cache		=>	$ENV{FORCE_CACHE}?1:0,
+		disable_charset	=>	0,
+		verbose 		=>	0,
+		sleep			=>	5,
+);
+
+sub cache_read;
+
+sub config {
+	my $arg;
+
+	while ($arg=shift){
+		croak "GET: odd number of arguments" if scalar @_ ==0;
+#		next if !defined $arg;
+
+		# Sanitize arguments a bit:
+		$arg=lc $arg;$arg=~y/-/_/;$arg=~s/^-+//;
+
+		if (defined $config{$arg}){
+			$config{$arg}=shift;
+		}else{
+			carp "GET: unknown option $arg used";
+		};
+	};
+	cache_read unless(defined %cache || $config{disable_cachedb});
 };
 
 sub cache_write {
-	if(!$disable_auto_cacheDB_maint){
-		print STDERR "GET: Cleaning cacheDB\n" if($verbose>1);
+	if(!$config{disable_cachedb_automaint}){
+		print STDERR "GET: Cleaning cacheDB\n" if($config{verbose}>1);
 		die "not implemented yet!";
 	};
-	print STDERR "GET: Writing cacheDB\n" if($verbose>1);
+	print STDERR "GET: Writing cacheDB\n" if($config{verbose}>1);
 	open(OUT,">",$cache_file) || die "Cannot write cacheDB file: $!";
 	print OUT Data::Dumper->Dump([\%cache],[qw(*cache)]);
 	close(OUT);
@@ -34,26 +60,33 @@ sub cache_write {
 
 sub cache_read {
 	if ( -f $cache_file ){
-		print STDERR "GET: Reading cacheDB\n" if($verbose>1);
+		print STDERR "GET: Reading cacheDB\n" if($config{verbose}>1);
 		do $cache_file;
 	}else{
-		print STDERR "GET: No cacheDB found\n" if($verbose);
+		print STDERR "GET: No cacheDB found\n" if($config{verbose});
 		%cache=();
 	};
 };
 
 sub check_url{
 	my $url=shift;
-	my $time = shift;
+	my $cachename = shift || mkcache($url);
+	my $timestamp;
 
-	cache_read unless(defined %cache || $disable_auto_cacheDB);
+   	return undef if ($config{force_cache} && -f $cachename);
+
+	if(-f $cachename && !$config{disable_lastmod_guess}){
+		$timestamp= (stat(_))[9];
+	};
+
+	cache_read unless(defined %cache || $config{disable_cachedb});
 
 	my $ua = new LWP::UserAgent();
 	$ua->agent($ua->_agent." etag/0.1");
 
 	my $req = HTTP::Request->new( GET => $url );
 	if(my $ucache=${cache{$url}}){
-		print STDERR "GET: Cache exists\n" if $verbose>1;
+		print STDERR "GET: Cache exists\n" if $config{verbose}>1;
 
 		if(defined $ucache->{'ETag'}){
 			$req->header('If-None-Match' => $ucache->{'ETag'})
@@ -63,30 +96,43 @@ sub check_url{
 			$req->header('If-Modified-Since' => $ucache->{'Last-Modified'});
 		};
 	};
-	if($time && !defined $req->header('If-Modified-Since')){
-		print STDERR "GET: falling back on timestamp\n" if $verbose;
+	if($timestamp && !defined $req->header('If-Modified-Since')){
+		print STDERR "GET: falling back on timestamp\n" if $config{verbose};
 		my $loc= setlocale( LC_TIME);
 		setlocale( LC_TIME, "C" );
 
 		$req->header('If-Modified-Since' => 
-				strftime('%a, %d %b %Y %H:%M:%S %Z',gmtime $time));
+				strftime('%a, %d %b %Y %H:%M:%S %Z',gmtime $timestamp));
 		setlocale( LC_TIME, $loc);
 	};
 
+#	print "Server: ",$req->uri->host,"\n";
+
+	my $ots=$cache{"time://".$req->uri->host}||0;
+	my $ts=time;
+	$ots=$ts if($ots>$ts);
+	if ($ots+$config{sleep}>$ts){
+		print STDERR "GET: sleeping ".($ots-$ts+$config{sleep})."s ...\n" if $config{verbose}>1;
+		sleep($ots-$ts+$config{sleep});
+	};
+
 	my $res = $ua->request($req);
+
+	$cache{"time://".$req->uri->host}=time;
+
 	if ($res->is_success) {
-		print STDERR "GET: Got new file.\n" if ($verbose);
+		print STDERR "GET: Got new file.\n" if ($config{verbose});
 		for (qw(ETag Last-Modified)){			# save ETag & Last-Modified
 			$cache{$url}{$_}=$res->header($_) if
 				defined $res->header($_);
 		};
-		return $res->decoded_content;
+		return $res->decoded_content($config{disable_charset}?(charset => "none"):());
 	} elsif ( $res->code() eq '304' ) {
-		print STDERR "GET: File not modified.\n" if $verbose;
+		print STDERR "GET: File not modified.\n" if $config{verbose};
 		return undef;
 	} else {
-		if($skip_errors){
-			print STDERR "GET: skipping on error ",$res->status_line,"($url)\n";
+		if($config{skip_errors}){
+			print STDERR "GET: skipping on error ",$res->status_line,"\n";
 			return undef;
 		};
 		print STDERR $res->status_line,"\n";
@@ -98,23 +144,39 @@ sub get_url {
 	my $url=shift;
 	my $shortname=shift || mkcache($url);
 	my $timestamp=undef;
+	my $content=undef;
 
-	print STDERR "\nGET: Processing $shortname\n" if $verbose>1;
+	print STDERR "\nGET: Processing $shortname\n" if $config{verbose}>1;
 
 	if(! -f $shortname && defined $cache{$url}){
 		warn "GET: Cache file for $shortname was missing\n";
 		delete $cache{$url};
-	}elsif(-f _ && !$disable_lastmod_guess){
-		$timestamp= (stat(_))[9];
 	};
-	my $content=check_url($url,$timestamp);
+
+	$content=check_url($url,$shortname);
 
 	if (defined $content){
-		open(CACHE,">:utf8",$shortname) || die "Cannot cache URL: $!";
+		open(CACHE,">",$shortname) || die "Cannot cache URL: $!";
+		if(!is_utf8($content)){
+			print STDERR "GET: I think its raw\n" if $config{verbose}>1;
+			if($config{disable_cachedb}){
+				open(X,">",$shortname.".is_raw");
+				close(X);
+			}else{
+				$cache{$url}{is_raw}=1;
+			};
+		}else{
+			binmode CACHE,":utf8";
+			unlink($shortname.".is_raw");
+			$cache{$url}{is_raw}=0;
+		};
 		print CACHE $content;
 		close CACHE;
 	}else{
-		open(CACHE,"<:utf8",$shortname) || die "Cannot read cached URL: $!";
+		open(CACHE,"<",$shortname) || die "Cannot read cached URL: $!";
+		if ( !-f $shortname.".is_raw" && !$cache{$url}{is_raw}){
+			binmode CACHE,":utf8" 
+		};
 		local $/;
 		$content=<CACHE>;
 		close CACHE;
@@ -133,7 +195,7 @@ sub mkcache {
 };
 
 END {
-	cache_write unless ($disable_auto_cacheDB);
+	cache_write unless ($config{disable_cachedb} || !defined %cache);
 };
 
 1;
