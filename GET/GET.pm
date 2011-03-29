@@ -23,6 +23,7 @@ our %config=(
 		force_cache		=>	$ENV{FORCE_CACHE}?1:0,
 		disable_charset	=>	0,
 		verbose 		=>	0,
+		cache_verbose	=>	0,
 		sleep			=>	5,
 );
 
@@ -131,6 +132,9 @@ sub check_url{
 		print STDERR "GET: File not modified.\n" if $config{verbose};
 		return undef;
 	} else {
+		if(wantarray){
+			return (undef,$res->status_line);
+		};
 		if($config{skip_errors}){
 			print STDERR "GET: skipping on error ",$res->status_line,"\n";
 			return undef;
@@ -145,6 +149,7 @@ sub get_url {
 	my $shortname=shift || mkcache($url);
 	my $timestamp=undef;
 	my $content=undef;
+	my $error=undef;
 
 	print STDERR "\nGET: Processing $shortname\n" if $config{verbose}>1;
 
@@ -153,7 +158,7 @@ sub get_url {
 		delete $cache{$url};
 	};
 
-	$content=check_url($url,$shortname);
+	($content,$error)=check_url($url,$shortname);
 
 	if (defined $content){
 		open(CACHE,">",$shortname) || die "Cannot cache URL: $!";
@@ -172,7 +177,22 @@ sub get_url {
 		};
 		print CACHE $content;
 		close CACHE;
-	}else{
+	}elsif(defined $error){
+		if($config{skip_errors}){
+			if ( -f $shortname){
+				; # get from cache
+			}else{
+				$content="";
+			};
+		}elsif(wantarray){
+			return(undef,$error);
+		}else{
+			die "Whoops, something went wrong: $error\n";
+		};
+	};
+
+	if (!defined $content){
+		print "(cached)" if ($config{cache_verbose});
 		open(CACHE,"<",$shortname) || die "Cannot read cached URL: $!";
 		if ( !-f $shortname.".is_raw" && !$cache{$url}{is_raw}){
 			binmode CACHE,":utf8" 
