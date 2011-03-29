@@ -20,11 +20,13 @@ our %config=(
 		disable_cachedb_automaint => 1, # Not yet implemented
 		disable_lastmod_guess	=>	0,
 		skip_errors		=>	0,
-		force_cache		=>	$ENV{FORCE_CACHE}?1:0,
+		force_cache		=>	$ENV{FORCE_CACHE}?1:0, # 2: never get anything
 		disable_charset	=>	0,
 		verbose 		=>	0,
 		cache_verbose	=>	0,
-		sleep			=>	5,
+		sleep			=>	2,
+		ratelimit		=>  "1/5",
+		min_cache		=>	0,
 );
 
 sub cache_read;
@@ -67,6 +69,7 @@ sub cache_read {
 		print STDERR "GET: No cacheDB found\n" if($config{verbose});
 		%cache=();
 	};
+	($config{_ratecnt},$config{_ratetime})=($config{ratelimit}=~m!(\d+)/(\d+)!);
 };
 
 sub check_url{
@@ -75,9 +78,14 @@ sub check_url{
 	my $timestamp;
 
    	return undef if ($config{force_cache} && -f $cachename);
+   	return undef if ($config{force_cache}>1);
 
 	if(-f $cachename && !$config{disable_lastmod_guess}){
 		$timestamp= (stat(_))[9];
+	};
+	if (-f $cachename && $config{min_cache}){
+		$timestamp= $cache{$url}{time} || $timestamp;
+		return undef if ($timestamp+$config{min_cache} > time);
 	};
 
 	cache_read unless(defined %cache || $config{disable_cachedb});
@@ -110,16 +118,29 @@ sub check_url{
 #	print "Server: ",$req->uri->host,"\n";
 
 	my $ots=$cache{"time://".$req->uri->host}||0;
+	my $cnt=$cache{"count://".$req->uri->host}||0;
 	my $ts=time;
-	$ots=$ts if($ots>$ts);
-	if ($ots+$config{sleep}>$ts){
-		print STDERR "GET: sleeping ".($ots-$ts+$config{sleep})."s ...\n" if $config{verbose}>1;
-		sleep($ots-$ts+$config{sleep});
+
+	$ots=$ts if($ots>$ts); # Sanity fix.
+	if($ots+$config{_ratetime}<$ts){
+		$cache{"time://".$req->uri->host}=time;
+		$cnt=0;
 	};
+	if(++$cnt > $config{_ratecnt}){
+		my $sleep=$ots-$ts+$config{_ratetime};
+		print STDERR "GET: ratelimit: sleeping ".($sleep)."s ...\n" 
+			if ($config{verbose}>1 || $sleep > 60);
+		sleep($sleep);
+		$cnt=0;
+		$cache{"time://".$req->uri->host}=time;
+	}elsif($ts-$config{_time} < $config{sleep}){
+		print STDERR "GET: enforcing min_sleep ...\n" if $config{verbose}>1;
+		sleep($config{sleep}-($ts-$config{_time}));
+	};
+	$cache{"count://".$req->uri->host}=$cnt;
+	$config{_time}=$ts;
 
 	my $res = $ua->request($req);
-
-	$cache{"time://".$req->uri->host}=time;
 
 	if ($res->is_success) {
 		print STDERR "GET: Got new file.\n" if ($config{verbose});
@@ -127,9 +148,11 @@ sub check_url{
 			$cache{$url}{$_}=$res->header($_) if
 				defined $res->header($_);
 		};
+		$cache{$url}{time}=time;
 		return $res->decoded_content($config{disable_charset}?(charset => "none"):());
 	} elsif ( $res->code() eq '304' ) {
 		print STDERR "GET: File not modified.\n" if $config{verbose};
+		$cache{$url}{time}=time;
 		return undef;
 	} else {
 		if(wantarray){
@@ -195,7 +218,13 @@ sub get_url {
 	if (!defined $content){
 		$cached=1;
 		print "(cached)\n" if ($config{cache_verbose});
-		open(CACHE,"<",$shortname) || die "Cannot read cached URL: $!";
+		open(CACHE,"<",$shortname) || do{
+			if($config{force_cache}>1){
+				return("",2) if wantarray;
+				return "";
+			};
+			die "Cannot read cached URL: $!";
+		};
 		if ( !-f $shortname.".is_raw" && !$cache{$url}{is_raw}){
 			binmode CACHE,":utf8" 
 		};
@@ -204,7 +233,7 @@ sub get_url {
 		close CACHE;
 	};
 	if(wantarray){
-		return ($cached,$content);
+		return ($content,$cached);
 	}else{
 		return $content;
 	};
