@@ -27,6 +27,9 @@ our %config=(
 		sleep			=>	2,
 		ratelimit		=>  "1/5",
 		min_cache		=>	0,
+		auth			=>	0,
+		user			=>	"",
+		pass			=>	"",
 );
 
 sub cache_read;
@@ -102,8 +105,13 @@ sub check_url{
 		};
 
 		if(defined $ucache->{'Last-Modified'}){
-			$req->header('If-Modified-Since' => $ucache->{'Last-Modified'});
+#			$req->header('If-Modified-Since' => $ucache->{'Last-Modified'});
+			$timestamp=0;
 		};
+	};
+	if($config{auth}){
+#print "Auth: $config{user} / $config{pass}\n";
+		$req->authorization_basic($config{user},$config{pass});
 	};
 	if($timestamp && !defined $req->header('If-Modified-Since')){
 		print STDERR "GET: falling back on timestamp\n" if $config{verbose};
@@ -140,7 +148,9 @@ sub check_url{
 	$cache{"count://".$req->uri->host}=$cnt;
 	$config{_time}=$ts;
 
+#print $req->as_string();
 	my $res = $ua->request($req);
+#print $res->as_string();
 
 	if ($res->is_success) {
 		print STDERR "GET: Got new file.\n" if ($config{verbose});
