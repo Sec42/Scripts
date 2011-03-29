@@ -191,8 +191,10 @@ sub get_url {
 		};
 	};
 
+	my $cached=0;
 	if (!defined $content){
-		print "(cached)" if ($config{cache_verbose});
+		$cached=1;
+		print "(cached)\n" if ($config{cache_verbose});
 		open(CACHE,"<",$shortname) || die "Cannot read cached URL: $!";
 		if ( !-f $shortname.".is_raw" && !$cache{$url}{is_raw}){
 			binmode CACHE,":utf8" 
@@ -201,7 +203,11 @@ sub get_url {
 		$content=<CACHE>;
 		close CACHE;
 	};
-	return $content;
+	if(wantarray){
+		return ($cached,$content);
+	}else{
+		return $content;
+	};
 };
 
 sub mkcache {
