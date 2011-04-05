@@ -1,9 +1,11 @@
-#!/usr/local/bin/perl
+#!/usr/local/bin/perl -s
 
 # arte_rtmpdump.pl
 # - Simple script do simplify arte mediathek downloads
 # - by Stefan `Sec` Zehl <sec@42.org>
 # - Licence: BSD (2-clause)
+
+our ($dwim);
 
 #$_='http://videos.arte.tv/de/videos/flaschenwahn_statt_wasserhahn-3775760.html';
 
@@ -19,13 +21,37 @@ GET::config (
 
 my $body;
 my $err;
+my ($proto,$host,$app,$path);
+my $name;
+my $player;
 
 $body=GET::get_url($_);
+
+if ($_ =~ /ardmediathek.de/){
+	#mediaCollection.addMediaStream(0, 1, "rtmp://swr.fcod.llnwd.net/a4332/e6/", "mp4:kultur/30-extra/alpha07/409171.m");
+
+	if(!($body=~m!<h2>([^<]*)!)){
+		die "Can't find title tag\n";
+	};
+	$name=$1;
+	$name=~s!&.*?;!!g;
+	$name=~y!0-9a-zA-Z -!!cd;
+	$name=~s!\s*-\s*!-!g;
+	$name=~s!\s+!_!g;
+	$name="ARD-".$name.".flv";
+
+	if (!($body=~m!mediaCollection.addMediaStream[^"]*"
+				(rtmp)://([^/]*)/([^"]*)/",\s*"(mp4:[^"]*)"!ix)){
+		die "Can't find stream URL\n";
+	};
+	($proto,$host,$app,$path)=($1,$2,$3,$4);
+	$path=~s!\.[sm]$!.l!; # Use better stream!
+}else{
 
 if (!($body=~/url_player\s*=\s*"([^"]*)/s)){
 	die "Can't find player URL\n";
 };
-my $player=$1;
+$player=$1;
 
 if(!($body=~/<embed src="([^"]*)/)){
 	die "Can't find embed tag\n";
@@ -67,7 +93,7 @@ if(!$body){
 #print $body;
 
 my $doc2 = $parser->parse_string($body);
-my $name= ${
+$name= ${
 			$doc2->findnodes('/video/name')
 		}[0] -> textContent;
 
@@ -87,12 +113,23 @@ if (!($url2=~ m!(rtmp)://([^/]*)/(.*)/(MP4:.*)!)){
 	die "Can't match URL: $url2\n";
 }; 
 
-my ($proto,$host,$app,$path)=($1,$2,$3,$4);
+($proto,$host,$app,$path)=($1,$2,$3,$4);
+};
+
+if($player){
+	$player="-W '$player' \\\n";
+};
 
 print <<EOM
 rtmpdump \\
 --protocol '$proto' --host '$host' --app '$app' \\
 --playpath '$path' \\
--W '$player' \\
---flv '$name'
+${player}--flv '$name'
 EOM
+;
+if ($dwim){
+	system("rtmpdump \\
+--protocol '$proto' --host '$host' --app '$app' \\
+--playpath '$path' \\
+${player}--flv '$name' ");
+};
