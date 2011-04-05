@@ -1,0 +1,32 @@
+#!/usr/local/bin/perl
+
+# timeout.pl
+# - Script to force a maximum runtime for a program and its children.
+# - by Stefan `Sec` Zehl <sec@42.org>
+
+use strict;
+use warnings;
+use POSIX;
+
+my $sig="TERM";
+my $msg="Timeout!";
+my $time=10;
+my $pid;
+
+if ($ARGV[0] =~ /^-(\w+)/){
+	$sig=$1;
+	shift;
+};
+
+if ($ARGV[0] =~ /^\d+$/){
+	$time=shift;
+};
+
+$SIG{ALRM} = sub {
+	print STDERR $msg."\n";
+	kill $sig => -$$;
+};
+exec(@ARGV) unless $pid = fork;
+alarm $time;
+waitpid $pid, 0;
+exit( WIFEXITED($?) ? WEXITSTATUS($?) : WTERMSIG($?) );
