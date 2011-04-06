@@ -51,6 +51,7 @@ sub config {
 		};
 	};
 	cache_read unless(defined %cache || $config{disable_cachedb});
+	$config{_done}=1;
 };
 
 sub cache_write {
@@ -76,6 +77,8 @@ sub cache_read {
 };
 
 sub check_url{
+	croak "GET: no config?" unless($config{_done}); # Needs to be done before.
+
 	my $url=shift;
 	my $cachename = shift || mkcache($url);
 	my $timestamp;
@@ -90,8 +93,6 @@ sub check_url{
 		$timestamp= $cache{$url}{time} || $timestamp;
 		return undef if ($timestamp+$config{min_cache} > time);
 	};
-
-	cache_read unless(defined %cache || $config{disable_cachedb});
 
 	my $ua = new LWP::UserAgent();
 	$ua->agent($ua->_agent." etag/0.1");
@@ -141,12 +142,12 @@ sub check_url{
 		sleep($sleep);
 		$cnt=0;
 		$cache{"time://".$req->uri->host}=time;
-	}elsif($ts-$config{_time} < $config{sleep}){
+	}elsif($ts-$config{"time://global"} < $config{sleep}){
 		print STDERR "GET: enforcing min_sleep ...\n" if $config{verbose}>1;
-		sleep($config{sleep}-($ts-$config{_time}));
+		sleep($config{sleep}-($ts-$config{"time://global"}));
 	};
 	$cache{"count://".$req->uri->host}=$cnt;
-	$config{_time}=$ts;
+	$cache{"time://global"}=$ts;
 
 #print $req->as_string();
 	my $res = $ua->request($req);
@@ -179,10 +180,20 @@ sub check_url{
 
 sub get_url {
 	my $url=shift;
-	my $shortname=shift || mkcache($url);
+	my %config=%config; # Localize %config
+	my $shortname=undef;
+
+	if($#_ == 0){
+		# Backwards compatible way to set cache file name.
+		$shortname=shift;
+	}else{
+		config(@_) unless ($#_ == -1 && $config{_done} == 1);
+	};
+
 	my $timestamp=undef;
 	my $content=undef;
 	my $error=undef;
+	$shortname||=mkcache($url); # Ensure we know where to cache
 
 	print STDERR "\nGET: Processing $shortname\n" if $config{verbose}>1;
 
