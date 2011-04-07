@@ -5,9 +5,11 @@
 # - by Stefan `Sec` Zehl <sec@42.org>
 # - Licence: BSD (2-clause)
 
+use lib '../GET/';
 our ($dwim);
 
-#$_='http://videos.arte.tv/de/videos/flaschenwahn_statt_wasserhahn-3775760.html';
+# http://videos.arte.tv/de/videos/flaschenwahn_statt_wasserhahn-3775760.html
+# http://www.ardmediathek.de/ard/servlet/content/3517136?documentId=5817888
 
 $_=$ARGV[0];
 
@@ -25,57 +27,49 @@ my ($proto,$host,$app,$path);
 my $name;
 my $player;
 
-$body=GET::get_url($_);
 
 if ($_ =~ /ardmediathek.de/){
+	$body=GET::get_url($_, html => 1);
 	#mediaCollection.addMediaStream(0, 1, "rtmp://swr.fcod.llnwd.net/a4332/e6/", "mp4:kultur/30-extra/alpha07/409171.m");
 
-	if(!($body=~m!<h2>([^<]*)!)){
-		die "Can't find title tag\n";
-	};
-	$name=$1;
+	$name = $body->find("h2")->content_array_ref()->[0];
+	die "Can't find title tag\n" if ! defined $name;
 	$name=~s!&.*?;!!g;
 	$name=~y!0-9a-zA-Z -!!cd;
 	$name=~s!\s*-\s*!-!g;
 	$name=~s!\s+!_!g;
 	$name="ARD-".$name.".flv";
 
-	if (!($body=~m!mediaCollection.addMediaStream[^"]*"
-				(rtmp)://([^/]*)/([^"]*)/",\s*"(mp4:[^"]*)"!ix)){
-		die "Can't find stream URL\n";
+	for( $body->look_down( _tag => "script")){
+		next unless $_->content();
+		next unless $_->content()->[0]=~ 
+			m!mediaCollection.addMediaStream[^"]*"
+			(rtmp)://([^/]*)/([^"]*)/",\s*"(mp4:[^"]*)"!ix;
+		($proto,$host,$app,$path)=($1,$2,$3,$4);
 	};
-	($proto,$host,$app,$path)=($1,$2,$3,$4);
+
+	die "Can't find stream URL" unless defined $proto;
 	$path=~s!\.[sm]$!.l!; # Use better stream!
 }else{
 
-if (!($body=~/url_player\s*=\s*"([^"]*)/s)){
-	die "Can't find player URL\n";
+
+$body=GET::get_url($_, html => 1);
+
+for( $body->look_down( _tag => "script")){
+	next unless $_->content();
+	$player=$1 if $_->content()->[0]=~/url_player\s*=\s*"([^"]*)/;
 };
-$player=$1;
+die "Can't find player URL\n" if !$player;
 
-if(!($body=~/<embed src="([^"]*)/)){
-	die "Can't find embed tag\n";
-};
-
-my $embed=$1;
-
-#http://videos.arte.tv/blob/web/i18n/view/player_16-3188338-data-4836231.swf?admin=false&amp;autoPlay=true&amp;configFileUrl=http%3A%2F%2Fvideos.arte.tv%2Fcae%2Fstatic%2Fflash%2Fplayer%2Fconfig.xml&amp;embed=false&amp;lang=de&amp;localizedPathUrl=http%3A%2F%2Fvideos.arte.tv%2Fcae%2Fstatic%2Fflash%2Fplayer%2F&amp;mode=prod&amp;videoId=3783544&amp;videorefFileUrl=http%3A%2F%2Fvideos.arte.tv%2Fde%2Fdo_delegate%2Fvideos%2Falles_im_griff_-3783544%2Cview%2CasPlayerXml.xml';
-
+my $embed=$body->find("embed")->attr("src");
 $embed=~ s/.*videorefFileUrl=//;
-
 $embed=~s/&amp;/\&/g;
 $embed=~s/%(..)/chr hex $1/ge;
 
-
 #
 
-$body=GET::get_url($embed);
+my $doc=GET::get_url($embed, xml => 1);
 
-use strict;
-use XML::LibXML;
-my $parser = XML::LibXML->new();
-
-my $doc = $parser->parse_string($body);
 my $url=${
 			$doc->findnodes('//*/video[@lang="de"]/@ref')
 		}[0] -> textContent;
@@ -84,15 +78,8 @@ if(!$url){
 	die "Couldn't find second xml url\n";
 };
 
-$body=GET::get_url($url);
+my $doc2=GET::get_url($url, xml => 1);
 
-if(!$body){
-		die "No content?";
-};
-
-#print $body;
-
-my $doc2 = $parser->parse_string($body);
 $name= ${
 			$doc2->findnodes('/video/name')
 		}[0] -> textContent;
@@ -100,6 +87,8 @@ $name= ${
 print "Video name: $name\n";
 
 $name=~s! !_!g;
+$name=~s/ä/ae/g; $name=~s/ö/oe/g; $name=~s/ü/ue/g;
+$name=~s/Ä/Ae/g; $name=~s/Ö/Oe/g; $name=~s/Ü/Ue/g; $name=~s/ß/ss/g;
 $name=~y!a-zA-Z_!!cd;
 $name="ARTE-".$name.".flv";
 my $url2=${
@@ -118,18 +107,20 @@ if (!($url2=~ m!(rtmp)://([^/]*)/(.*)/(MP4:.*)!)){
 
 if($player){
 	$player="-W '$player' \\\n";
+}else{
+	$player="";
 };
 
-print <<EOM
+
+my $cmd= <<EOM ;
 rtmpdump \\
 --protocol '$proto' --host '$host' --app '$app' \\
 --playpath '$path' \\
 ${player}--flv '$name'
 EOM
-;
+
+print $cmd;
+
 if ($dwim){
-	system("rtmpdump \\
---protocol '$proto' --host '$host' --app '$app' \\
---playpath '$path' \\
-${player}--flv '$name' ");
+	system("echo $cmd");
 };
