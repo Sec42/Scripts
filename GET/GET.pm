@@ -3,6 +3,7 @@
 package GET;
 
 use strict;
+use Module::Load;
 use LWP::UserAgent;
 use HTTP::Request;
 use Data::Dumper;
@@ -30,6 +31,7 @@ our %config=(
 		auth			=>	0,
 		user			=>	"",
 		pass			=>	"",
+		html			=>  0,
 );
 
 sub cache_read;
@@ -49,6 +51,10 @@ sub config {
 		}else{
 			carp "GET: unknown option $arg used";
 		};
+	};
+	if($config{html}){
+		load HTML::TreeBuilder;
+		
 	};
 	cache_read unless(defined %cache || $config{disable_cachedb});
 	$config{_done}=1;
@@ -253,6 +259,14 @@ sub get_url {
 		$content=<CACHE>;
 		close CACHE;
 	};
+
+	if($config{html}){
+		my $tree=HTML::TreeBuilder->new;
+		$tree->parse($content);
+		$tree->elementify();
+		$content=$tree;
+	};
+
 	if(wantarray){
 		return ($content,$cached);
 	}else{
