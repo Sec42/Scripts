@@ -32,6 +32,7 @@ our %config=(
 		user			=>	"",
 		pass			=>	"",
 		html			=>	0,
+		xml				=>	0,
 );
 
 sub cache_read;
@@ -54,6 +55,9 @@ sub config {
 	};
 	if($config{html}){
 		load HTML::TreeBuilder;
+	};
+	if($config{xml}){
+		load XML::LibXML;
 	};
 	cache_read unless(defined %cache || $config{disable_cachedb});
 	$config{_done}=1;
@@ -264,6 +268,12 @@ sub get_url {
 		$tree->parse($content);
 		$tree->elementify();
 		$content=$tree;
+	};
+
+	if($config{xml}){
+		my $parser = XML::LibXML->new();
+		my $doc = $parser->parse_string($content);
+		$content=$doc;
 	};
 
 	if(wantarray){
