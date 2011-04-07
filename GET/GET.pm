@@ -180,7 +180,7 @@ sub check_url{
 
 sub get_url {
 	my $url=shift;
-	my %config=%config; # Localize %config
+	local %config=%config; # Localize %config
 	my $shortname=undef;
 
 	if($#_ == 0){
