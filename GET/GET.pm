@@ -31,7 +31,7 @@ our %config=(
 		auth			=>	0,
 		user			=>	"",
 		pass			=>	"",
-		html			=>  0,
+		html			=>	0,
 );
 
 sub cache_read;
@@ -54,7 +54,6 @@ sub config {
 	};
 	if($config{html}){
 		load HTML::TreeBuilder;
-		
 	};
 	cache_read unless(defined %cache || $config{disable_cachedb});
 	$config{_done}=1;
