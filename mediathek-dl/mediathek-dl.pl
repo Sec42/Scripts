@@ -1,9 +1,15 @@
 #!/usr/local/bin/perl -s
 
 # arte_rtmpdump.pl
-# - Simple script do simplify arte mediathek downloads
+# - Simple script do simplify (arte+7/ard) mediathek downloads
 # - by Stefan `Sec` Zehl <sec@42.org>
-# - Licence: BSD (2-clause)
+# - Licence: BSD (3-clause)
+
+# requires perl
+#          GET.pm (see ../GET/)
+#          rtmpdump (http://rtmpdump.mplayerhq.hu/)
+#
+# use "./arte_rtmpdump.pl -dwim <url>" to actually call rtmpdump
 
 use lib '../GET/';
 our ($dwim);
@@ -42,8 +48,7 @@ if ($_ =~ /ardmediathek.de/){
 
 	for( $body->look_down( _tag => "script")){
 		next unless $_->content();
-		next unless $_->content()->[0]=~ 
-			m!mediaCollection.addMediaStream[^"]*"
+		next unless $_->content()->[0]=~ m!mediaCollection.addMediaStream[^"]*"
 			(rtmp)://([^/]*)/([^"]*)/",\s*"(mp4:[^"]*)"!ix;
 		($proto,$host,$app,$path)=($1,$2,$3,$4);
 	};
@@ -95,7 +100,6 @@ my $url2=${
 			$doc2->findnodes('//*/url[@quality="hd"]')
 		}[0] -> textContent;
 
-#print $url2,"\n";
 #rtmp://artestras.fcod.llnwd.net/a3903/o35/MP4:geo/videothek/EUR_DE_FR/arteprod/A7_SGT_ENC_04_040261-000-A_PG_HQ_DE?h=404905af3f3096a4b903ca476b089063
 
 if (!($url2=~ m!(rtmp)://([^/]*)/(.*)/(MP4:.*)!)){
@@ -122,5 +126,5 @@ EOM
 print $cmd;
 
 if ($dwim){
-	system("echo $cmd");
+	system("$cmd");
 };
