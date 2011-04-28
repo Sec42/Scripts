@@ -7,7 +7,7 @@ use strict;
 use utf8;
 use WWW::Mechanize;
 
-use constant DEBUG =>1;
+my $debug=1;
 
 umask(0077);
 
@@ -18,6 +18,7 @@ while(<F>){
 	/^phone=(.*)/ && do {$phone=$1;next};
 	/^pass=(.*)/  && do {$pass= $1;next};
 	/^pin=(.*)/   && do {$pin=  $1;next};
+	/^debug=(.*)/ && do {$debug=$1;next};
 	warn "Don't understand line $_\n";
 };
 die "Some credentials missing." unless ($phone && $pass && $pin);
@@ -30,7 +31,7 @@ my $mech = WWW::Mechanize->new(autocheck => 1);
 
 $mech->get( $url );
 
-if(DEBUG) {
+if($debug) {
 	open(F,">1.html"); print F $mech->content();
 };
 
@@ -44,14 +45,14 @@ $mech->submit_form(
 		button => "_eventId_login"
 );
 
-if(DEBUG) {
+if($debug) {
 	open(F,">2.html"); print F $mech->content();
 }
 
 #$mech->follow_link( text_regex => qr/Weiter/i );
 $mech->submit_form( form_number => 1);
 
-if(DEBUG) {
+if($debug) {
 	open(F,">3.html"); print F $mech->content();
 }
 
@@ -59,7 +60,7 @@ $mech->follow_link( text_regex => qr/Mein O2/i );
 
 #$mech->submit_form( form_number => 1);
 
-if(DEBUG) {
+if($debug) {
 	open(F,">:utf8","4.html"); print F $mech->content();
 };
 
@@ -76,7 +77,7 @@ if(DEBUG) {
 
 $mech->follow_link( text_regex => qr!CSV! ); 
 
-if(DEBUG){
+if($debug){
 	open(F,">5.html"); print F $mech->content();
 };
 
