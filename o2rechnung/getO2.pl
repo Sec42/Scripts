@@ -32,7 +32,7 @@ my $mech = WWW::Mechanize->new(autocheck => 1);
 $mech->get( $url );
 
 if($debug) {
-	open(F,">1.html"); print F $mech->content();
+	open(F,">1.html"); print F $mech->content();close(F);
 };
 
 
@@ -46,7 +46,7 @@ $mech->submit_form(
 );
 
 if($debug) {
-	open(F,">2.html"); print F $mech->content();
+	open(F,">2.html"); print F $mech->content();close(F);
 }
 
 #$mech->follow_link( text_regex => qr/Weiter/i );
@@ -61,24 +61,24 @@ $mech->follow_link( text_regex => qr/Mein O2/i );
 #$mech->submit_form( form_number => 1);
 
 if($debug) {
-	open(F,">:utf8","4.html"); print F $mech->content();
+	open(F,">:utf8","4.html"); print F $mech->content();close(F);
 };
 
-	my $rech=$mech->find_link(text_regex => qr!Rechnung.*PDF!s);
-	if (!defined $rech){
-		die "No PDF link found!";
-	};
+my $rech=$mech->find_link(text_regex => qr!Rechnung.*PDF!s);
+if (!defined $rech){
+	die "No PDF link found!";
+};
 
-	my $lnk=$mech->find_link(text_regex => qr!CSV!);
-	if (!defined $lnk){
-		die "No CSV link found!";
-	};
-	$lnk=$lnk->url(); $lnk=~s!.*/!!; $lnk=~y/a-zA-Z0-9._-//cd;
+my $lnk=$mech->find_link(text_regex => qr!CSV!);
+if (!defined $lnk){
+	die "No CSV link found!";
+};
+$lnk=$lnk->url(); $lnk=~s!.*/!!; $lnk=~y/a-zA-Z0-9._-//cd;
 
 $mech->follow_link( text_regex => qr!CSV! ); 
 
 if($debug){
-	open(F,">5.html"); print F $mech->content();
+	open(F,">5.html"); print F $mech->content();close(F);
 };
 
 $mech->submit_form(
@@ -88,13 +88,13 @@ $mech->submit_form(
 		},
 );
 
-open(F,">:utf8",$lnk); print F $mech->content();
+open(F,">:utf8",$lnk); print F $mech->content();close(F);
 
 $mech->get( $rech->url() );
 
-	$rech=$rech->url(); $rech=~s!.*/!!; $rech=~y/a-zA-Z0-9._-//cd;
+$rech=$rech->url(); $rech=~s!.*/!!; $rech=~y/a-zA-Z0-9._-//cd;
 
-open(F,">:utf8",$rech); print F $mech->content();
+open(F,">:utf8",$rech); print F $mech->content();close(F);
 
 print "Fetched:\n\n";
 system ("ls -l '$lnk' '$rech'");
