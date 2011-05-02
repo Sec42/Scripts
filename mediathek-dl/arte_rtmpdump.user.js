@@ -29,6 +29,8 @@ xmlhttp.open("GET", url, false);
 xmlhttp.send(null);
 var title= xmlhttp.responseXML.documentElement.getElementsByTagName("name")[0].childNodes[0].nodeValue;
 
+title = title.replace(/[^A-Za-z0-9 -]/g, '_');
+
 var v= xmlhttp.responseXML.documentElement.getElementsByTagName("url");
 
 for (i=0;i<v.length;i++){
