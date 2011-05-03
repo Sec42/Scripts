@@ -1,0 +1,7 @@
+This script attempts to find a linear history for multiple versions
+of a file.  Run it with all the versions on the command line and it
+will output the sequence from oldest to newest version based on diffs
+between the files.
+
+It works by diff'ing the files and tries to find a set of minimal changes.
+To distinguish old from new, it favours additions over deletions.
