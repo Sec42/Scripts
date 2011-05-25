@@ -1,0 +1,368 @@
+#!/usr/local/bin/perl -w
+
+# This script has gotten really ugly, but it supports:
+# "IPa-IPb" to find smallest single subnet enclosing IPa and IPb
+#   IPa can be BSD-Style 127.1 or even hex (0x7f000001)
+#   IPb can be like IPa, or omit leading octets ".8.255" (to be taken from IPa)
+# "IPa IPb" is same as "IPa-IPb"
+# "IPc/cidr" fixes IPc to network address and prints boundarys of network
+#   IPc can omit trailing octets (10.8 for 10.8.0.0)
+#   cidr = 0-32
+# "IPa" translates IP into normal, hex, int and BSD-Style.
+# "IPv6" translates IPv6 into short, full and DNS format. Also deals with 6to4
+# "/cidr" explains Netmask and number of IPs
+# "-r IPa-IPb" to find minimal CIDR representation of that range
+#
+# prepend "-a" for more (semi-useful) output in most cases
+
+use strict;
+
+sub ip2int_bsd { # Supports 127.1 => 127.0.0.1 (BSD style)
+	return hex(shift) if($_[0] =~ /^0x/);
+	my @q=split(/\./, shift);
+	my $num=$#q;
+	my $last=$q[$num];
+	
+	@q[$num..3]=((0)x(3-$num),$last);
+
+	my $ip=0;
+	for(@q){
+		$ip=($ip*256)+$_;
+	};
+	return $ip;
+};
+
+sub ip2int { return unpack("N", pack("C4", split(/\./, $_[0]))); }
+sub int2ip { return join(".", unpack("C4", pack("N", $_[0]))); }
+
+sub ip2int2 { 
+	if($_[0]=~s/^\.//){
+		my @q=split(/\./, $_[0]);
+		my @r=split(/\./, int2ip(ip2int_bsd($_[1])));
+		for (0..$#q){
+			$r[$#r-$#q+$_]=$q[$_];
+		};
+		return unpack("N", pack("C4", @r));
+	}else{
+		return unpack("N", pack("C4", split(/\./, $_[0])));
+	}
+}
+
+sub int2ip2 {
+	my @r=unpack("C4", pack("N", $_[0]));
+	my @q=@r;$r[0]=0;
+	return $q[0].".".unpack("N",pack("C4",@r));
+}
+
+sub int2ip3 {
+	my @r=unpack("C4", pack("N", $_[0]));
+	my @q=@r;$r[0]=0;$r[1]=0;
+	return $q[0].".".$q[1].".".unpack("N",pack("C4",@r));
+}
+
+sub ip_range {
+	my($ip, $cidr, $net, $bc) = split(/\//, $_[0]);
+	if (($cidr =~ /^0x(.*)/)||($cidr =~ /^([0-9a-f]{8})/i)){
+		my $nm=hex($1);
+		$cidr =32- (log(~($nm)+1) / log(2));
+    }elsif ($cidr =~ /\./){
+        my $nm=ip2int_bsd($cidr);
+        $cidr =32- (log(~($nm)+1) / log(2));
+    };
+	$cidr = 32 unless defined $cidr;
+	if($ip=~/^\./){
+		$ip=&ip2int2($ip,"0.0.0.0");
+	}else{
+		$ip = &ip2int($ip);
+	};
+	$net = $ip & ~ ( 2 ** (32 - $cidr) - 1);
+	$bc = $ip | (2 ** (32 - $cidr) - 1);
+	return ($cidr, $net, $bc);
+}
+
+use vars qw(%ethtable);
+sub ether{
+	open(Q,"</home/sec/.irc/ethercodes.dat")||return;
+	while(<Q>){
+		next if (/^#|^$/);
+		if(/^(..-..-..)\s(\S+)\s(.*)/){
+			$ethtable{$1}=$3 if(!defined($ethtable{$1}));
+		};
+	};
+};
+
+
+use vars qw(@ip @opt);
+use vars qw($pass $optimized $ip);
+use vars qw($ip1 $ip1_cidr $ip1_net $ip1_bc);
+use vars qw($ip2 $ip2_cidr $ip2_net $ip2_bc);
+
+my ($cidr,$net,$bc,$ip,$all,$hex,$onlycidr,$realcidr);
+
+
+if($ARGV[0] eq "-a"){
+	shift;
+	$all=1;
+};
+if($ARGV[0] eq "-r"){ # Real CIDR ranges... (break down into allocs.)
+	shift;
+	$realcidr=1;
+};
+
+#counter compat
+if($ARGV[0] =~ s/^-a +//){
+	$all=1;
+};
+if($ARGV[0] =~ s/^-r +//){
+	$realcidr=1;
+};
+
+if($ARGV[0] =~ /(.*)[ -]+(.*)/){
+	$ARGV[0]=$1;$ARGV[1]=$2;
+};
+
+if((defined $ARGV[1]) &&($ARGV[1] eq "-")){$ARGV[1]=$ARGV[2]};
+
+if($ARGV[0] =~ /:/){
+	my(@file,$file,$name,$zone);
+	$_=$ARGV[0];
+	y/A-F/a-f/;
+	if(s/%(.*)//){
+		$zone=$1;
+	};
+#	print "IPv6! ";
+	@file=split(/:/);
+	if($#file!=7){s/::/":".(":"x(8-$#file))/e;};
+	$file=join(":",map {sprintf "%04s",$_} split(/:/));
+	@file=map {split //,sprintf "%04s",$_} split(/:/);
+	if($#file>31){die "Addr too long.";}
+	$#file=31;@file=map {$_||0} @file;
+	$name=join(".",reverse @file).".ip6.int";
+
+	my $short=$file;
+	$short=~s/(^|:)0+([a-f\d])/$1$2/g;
+	$short=~s/:0(:0)*:/::/;
+	$short=~s/^0::/::/; $short=~s/::0$/::/;
+
+	print "$short = $file\n$name\n";
+
+	if($file=~/^(?:[\da-f]{1,4}:){4}([\da-f]{1,4}):([\da-f]{0,2})ff:fe([\da-f]{0,2}):([\da-f]{1,4})/i){
+        my($oc1,$oc2,$oc3,$oc4,$oc5,$oc6)=($1,undef,hex $2,hex $3,$4,undef);
+        $oc1=~s/(.?.)$//; $oc2=hex $1; $oc1=(hex $oc1) ^2;
+        $oc5=~s/(.?.)$//; $oc6=hex $1; $oc5=(hex $oc5);
+
+		printf "EUI64 Mac: %02x:%02x:%02x:%02x:%02x:%02x",$oc1,$oc2,$oc3,$oc4,$oc5,$oc6;
+		my $oui = sprintf"%02X-%02X-%02X",$oc1,$oc2,$oc3;
+		ether(); # Fill table.
+		if($ethtable{$oui}){
+			print ", Ethercode: ",$ethtable{$oui};
+		};
+		print "\n";
+	};
+	if ($file=~/^2002:([a-f\d]+):([a-f\d]+):/i){
+		$ARGV[0]=sprintf "%04s%04s",$1,$2;
+		print "6to4 address:\n";
+	}elsif($file=~/^0000(?::0000){5}:([a-f\d]+):([a-f\d]+)/i){
+		$ARGV[0]=sprintf "%04s%04s",$1,$2;
+		print "IPv4 compatible address:\n";
+	}elsif($file=~/^0000(?::0000){4}:ffff:([a-f\d]+):([a-f\d]+)/i){
+		$ARGV[0]=sprintf "%04s%04s",$1,$2;
+		print "IPv4 mapped address:\n";
+	}elsif($file=~/^0000(?::0000){6}:0001/i){
+		print "node local: localhost\n";
+		exit(0);
+	}elsif($file=~/^f[cd]/i){
+		print "Unique local address\n";
+		exit(0);
+	}elsif($file=~/^fe[89ab]/i){
+		print "Link-Local address",($zone?" in zone $zone":""),"\n";
+		exit(0);
+	}elsif($file=~/^fe[cdef]/i){
+		print "Site-Local address (deprecated)",($zone?" in zone $zone":""),"\n";
+		exit(0);
+	}elsif($file=~/^ff/i){
+		print "Multicast prefix: ";
+		if($file=~/^ff0/){
+			print "well known";
+			if($file=~/^ff01:/){
+				print ", link local";
+			}elsif($file=~/^ff02:0000:0000:0000:0000:0001:ff/i){
+				print ", solicited node";
+			}elsif($file=~/^ff02:/i){
+				print ", site local";
+				if($file =~ /^ff02(?::0000){6}:0001$/){
+					print " [all nodes]";
+				}elsif($file=~/^ff02(?::0000){6}:0002$/i){
+					print " [all routers]";
+				}elsif($file=~/^ff02(?::0000){6}:0004$/i){
+					print " [DVRMP routers]";
+				}elsif($file=~/^ff02(?::0000){6}:0005$/i){
+					print " [OSPFUGP]";
+				}elsif($file=~/^ff02(?::0000){6}:0006$/i){
+					print " [OSPFIGP designated routers]";
+				}elsif($file=~/^ff02(?::0000){6}:0007$/i){
+					print " [ST routers]";
+				}elsif($file=~/^ff02(?::0000){6}:0008$/i){
+					print " [ST hosts]";
+				}elsif($file=~/^ff02(?::0000){6}:0009$/i){
+					print " [RIP routers]";
+				}elsif($file=~/^ff02(?::0000){6}:000a$/i){
+					print " [EIGRP routers]";
+				}elsif($file=~/^ff02(?::0000){6}:000b$/i){
+					print " [mobile agents]";
+				}elsif($file=~/^ff02(?::0000){6}:000d$/i){
+					print " [PIM routers]";
+				}elsif($file=~/^ff02(?::0000){6}:000d$/i){
+					print " [RSVP encap]";
+				};
+			}elsif($file=~/^ff05:/i){
+				print ", site local";
+			}elsif($file=~/^ff08:/i){
+				print ", organisation local";
+			}elsif($file=~/^ff0e:/i){
+				print ", global";
+			};
+		}elsif($file=~/^ff1/i){
+			print "transient";
+			if($file=~/^ff11:/){
+				print ", link local";
+			}elsif($file=~/^ff1[25]:/i){
+				print ", site local";
+			}elsif($file=~/^ff18:/i){
+				print ", organisation local";
+			}elsif($file=~/^ff1e:/i){
+				print ", global";
+			};
+		}elsif($file=~/^ff30:0000:0000:0000:0000:0000:/i){
+			print "RFC 3306 source-specific";
+		}elsif($file=~/^ff3/i){
+			print "RFC 3306 prefix-based";
+		}elsif($file=~/^ff7/i){
+			print "RFC 3956 embedded-RP";
+		}else{
+			print "unassigned";
+		};
+		if ($file =~ /^ff0.:.*:0000$/){
+			print ", reserved";
+		};
+		print "\n";
+		exit(0);
+	}elsif($file=~/^2001:0db8:/i){
+		print "Documentation prefix\n";
+		exit(0);
+	}elsif($file=~/^2001:0000:/i || $file =~/^3ffe:831f:/i ){
+		print "Teredo tunneling address\n";
+		my(@srv)=(hex $file[8].$file[9],hex $file[10].$file[11],hex $file[12].$file[13],hex $file[14].$file[15]);
+		my($flags)=hex $file[16].$file[17].$file[18].$file[19];
+		my($port) =hex "ffff" ^ hex $file[20].$file[21].$file[22].$file[23];
+		my(@clnt)=(255^hex $file[24].$file[25],255^hex $file[26].$file[27],255^hex $file[28].$file[29],255^hex $file[30].$file[31]);
+		print "Server: ",join(".",@srv),"\n";
+		print "Client: ",join(".",@clnt),", (NAT-)Port: $port";
+		if(($flags & hex "8000") !=0){
+			print " (Behind \"cone NAT\")";
+		};
+		if(($flags & hex "7fff") !=0){
+			print " (Unknown Flags value: $flags)";
+		};
+		print "\n";
+		$ARGV[0]=join(".",@clnt);
+#		exit(0);
+	}elsif($file=~/^3ffe:/i){
+		print "6bone (deactivated)\n";
+		exit(0);
+	}elsif($file=~/^2001:/i){
+		print "sub TLAs: ";
+		if($file=~/^2001:0[01]/i){
+			print "IANA";
+		}elsif($file=~/^2001:0[45]/i){
+			print "ARIN";
+		}elsif($file=~/^2001:0[6789ab]/i){
+			print "RIPE NCC";
+		}elsif($file=~/^2001:0[23cdef]/i){
+			print "APNIC";
+		}elsif($file=~/^2001:1[23]/i){
+			print "LACNIC";
+		}elsif($file=~/^2001:1[4567]/i){
+			print "RIPE NCC";
+		}elsif($file=~/^2001:1[89]/i){
+			print "ARIN";
+		}else{
+			print "unknown";
+		};
+		print "\n";
+		exit(0);
+	}else{
+		exit(0);
+	};
+}
+
+if(($ARGV[0] =~ /[xa-fA-F]/)&&($ARGV[0] =~ /^(?:0x)?([a-f\d]+)$/i)){
+	$ARGV[0]= join ".",map {hex $_} ($1=~/(..)/g);
+};
+
+if($ARGV[0] =~ /^\//){
+	$onlycidr=1;
+};
+
+if ($ARGV[0] =~ /\//){
+	$ip=$ARGV[0];
+}else{
+	if(!defined($ARGV[1])){
+		$ip=ip2int_bsd($ARGV[0]);
+		printf "%s = 0x%08X = % 9u",int2ip($ip),$ip,$ip;
+		printf " = %s",int2ip2($ip);
+		printf " = %s",int2ip3($ip);
+		printf "\n";
+		exit(0);
+	}else{
+		$net= ip2int_bsd($ARGV[0]);
+		$bc=  ip2int2($ARGV[1],$ARGV[0]);
+		my $nm=($net ^ ($bc));
+		$cidr =32- (log($nm+1) / log(2));
+
+		if($realcidr){
+			if($net == $bc){
+				print int2ip($net)."/32\n";
+			}elsif($net==0 && $bc==256**4-1){
+				print int2ip($net)."/0\n";
+			}else{
+				if($cidr!=int($cidr)){$cidr=int($cidr)}else{$cidr-=1;};
+
+				my $mitte=$bc&~1<<(32-$cidr-2);
+#				print "mitte=",int2ip($mitte)," cidr=$cidr\n";
+				if($mitte<$net){
+					$cidr++;
+					$mitte=$bc&~1<<(32-$cidr-2);
+				};
+
+				my $q=$mitte-$net;
+#				print unpack("B*",reverse pack("L",$q)),"\n";
+				my $z=32;my $v=1;
+				while($z>=$cidr){
+					($q&$v)&&do{print int2ip($net)."/$z\n"; $net+=$v};
+					$z--;$v<<=1;
+				};
+				if($z<=1){ $z=1;$v=1<<31 };
+				$q=$bc-$mitte+1;
+#				print unpack("B*",reverse pack("L",$q)),"\n";
+				while($z<33){
+					($q&$v)&&do{print int2ip($net)."/$z\n";$net+=$v};
+					$z++;$v>>=1;
+				};
+			};
+			exit(0);
+		};
+		$ip=sprintf("%s/%d",int2ip($net),$cidr);
+	};
+};
+
+($cidr, $net, $bc)=ip_range($ip);
+
+printf "%s/%d: %s - %s\n",int2ip($net),$cidr,int2ip($net),int2ip($bc) if(!$onlycidr);
+
+if($hex||$all){
+printf "Hex: %08X - %08X |Dec: % 9u - % 9u\n",$net,$bc,$net,$bc;
+}
+if($all||$onlycidr){
+printf "Bitmask: %d is Netmask: %s (0x%08x) has %d IPs\n",32-$cidr,int2ip(2**32-2**(32-$cidr)),2**32-(2**(32-$cidr)),2**(32-$cidr);
+}
