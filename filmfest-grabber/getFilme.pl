@@ -21,6 +21,7 @@ $Data::Dumper::Sortkeys = sub {
 
 GET::config (
 		min_cache => 3000,
+		verbose => 1,
         );
 
 my($body);
@@ -48,7 +49,7 @@ for( $body->look_down( _tag => "li")){
 	$link=~/=(\d+)/;
 	$id=$1;
 
-	print XML "<film id=$id>\n";
+	print XML qq!<film id="$id">\n!;
 
 	print "Otitle: ",$_->look_down( _tag => "p")->content()->[0],"\n" if ($v);
 	print "Image: ", $_->attr("style"),"\n" if ($v);
@@ -71,9 +72,13 @@ for( $body->look_down( _tag => "li")){
 	print "* Title5: ",$info->[4]->as_trimmed_text,"\n" if ($v && $info->[4]);
 	print "* Title6: ",$info->[5]->as_trimmed_text,"\n" if ($v && $info->[5]);
 	
-	print XML "<title>",$info->[0]->as_trimmed_text,"</title>\n";
-	my $t=$info->[1]->as_trimmed_text;
+	my $t=$info->[0]->as_trimmed_text;
+	$t=~s/&/\&amp;/;
+	print XML "<title>",$t,"</title>\n";
+
+	$t=$info->[1]->as_trimmed_text;
 	$t=~s/^\s*\(//;$t=~s/\)\s*$//;
+	$t=~s/&/\&amp;/;
 	print XML "<original-title>$t</original-title>\n";
 
 	$cat=$film->look_down(class=> "m_filmDetailInfoLeft")->look_down(_tag=>"a");
@@ -107,7 +112,7 @@ for( $body->look_down( _tag => "li")){
 
 		print XML "<date>$day</date>\n";
 		print XML "<starttime>$time</starttime>\n";
-		print XML "<location>$locs{$loc}</starttime>\n";
+		print XML "<location>$locs{$loc}</location>\n";
 		print XML "</screening>\n";
 	};
 };
