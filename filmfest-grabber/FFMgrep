@@ -1,0 +1,19 @@
+#!/usr/local/bin/perl
+
+use Data::Dumper;
+use XML::LibXML;
+
+my $parser = XML::LibXML->new();
+$parser->keep_blanks(0);
+my $doc = $parser->parse_file("ffm2011.xml");
+
+my $search=shift;
+
+foreach my $g ( $doc->findnodes('/ffm/film/title') ) {
+	if (defined $search && $g->textContent =~ /$search/i){
+		print $g->nodeName,": ";
+		print $g->textContent,"\n";
+	};
+
+};
+
