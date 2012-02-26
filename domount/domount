@@ -1,0 +1,49 @@
+#!/usr/bin/perl
+
+# Simple script to "automount" when automount is turned off
+
+use strict;
+use warnings;
+
+use Net::DBus;
+use Data::Dumper;
+
+# Get the D-Bus instance...
+my $test = Net::DBus->session
+	->get_service('org.gtk.Private.GduVolumeMonitor')
+	->get_object('/org/gtk/Private/RemoteVolumeMonitor',
+				 'org.gtk.Private.RemoteVolumeMonitor');
+
+my $arg=shift||"";
+
+my $v=0;
+$v=1 if($arg eq "-v");
+
+# Get list of devices.
+my @list = $test->List();
+
+for my $devs (@{$list[1]}){ # Mountable instances
+	print Dumper $devs if ($v);
+	print "Name: ",$devs->[1],"\n";
+	print "Type: ",(split(/ /,$devs->[2]))[2],"\n";
+	
+	# Are these flags documented somewhere?
+	print "Flags: ",join(",",
+			map {$_?"true":"false"}
+			map {$devs->[$_]} (3,4,5,6)
+			) ,"\n" if($v);
+
+	print "Uuid: ", $devs->[9]{"uuid"},"\n";
+
+	my $dev=$devs->[9]{"unix-device"};
+	print "Dev: $dev\n";
+	print "\n";
+
+	# Mount it
+	system("gvfs-mount -d $dev 2>&1 |grep -Ev '(assertion|null|^\$)'");
+	print "\n";
+	
+	# Show result
+	system("mount |grep $dev|sed 's/(.*//'");
+	print "\n";
+};
