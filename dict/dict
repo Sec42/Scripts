@@ -1,0 +1,72 @@
+#!/usr/bin/perl
+
+$rcs='$Id: dict,v 1.1 2003/02/04 12:19:53 sec Exp sec $';
+
+$|=1;
+
+if($ARGV[0] eq "-counter"){
+	$counter++;shift;
+};
+
+if ($ARGV[0] =~ s/^-n (\d+)\s+//){
+	$maxline=$1+1;
+}else{
+	$maxline=-1;
+};
+
+($src=$ARGV[0]) =~ y/a-zA-Z_-//cd;
+
+open (F,"fetch -o - http://dict.leo.org/\?relink=off\\&search=$src 2>/dev/null|");
+while(<F>){
+	last if /potenziell/;
+};
+s/<\/table>.*//i;
+s/\n/ /g;
+s/^.*?(<tr>)/$1/i;
+s{</t[dhr]>}{}gi;
+s{</?b>}{\002}gi if($counter);
+s{</?b>}{}gi;
+s{</?font[^>]*>}{}gi; # stoopid new font size=1 feature.
+# Neue Grammatik-Bildchen 08/2002
+s{<A HREF="[^"]*"(?: target="(?:_blank|mw)")?><IMG BORDER="0" ALT="\w*" (?:WIDTH=\d+ |HEIGHT=\d+ )*SRC="[^"]+"(?: target=[^> ]+)?></A> }{ }gi;
+# Umstellung 05/2001
+s{&nbsp;}{ }g;
+s{<t[dh][^>]*>\s+<}{<}gi;
+s{<i>\s*([^<]+)</i>}{/$1/}gi;
+
+$l=0;$cnt=0;
+
+while ($_){
+if (s/^<tr(?:\s[^>]*)?>\s*//i){
+	$cnt=0;$l++;
+} elsif(s/^<t[dh](?:\s[^>]*)?>\s*(.*?)\s*(<t[hdr][ >]|$)/$2/i){
+	$q=$1;
+	$q =~ s/<[^>]+>//g if ($tag);
+	$ar[$l][$cnt++]=$q;
+}elsif (s/<\/table>.*?<table>//i){
+	#
+}else{
+	print "End: $_";
+	last;
+};
+};
+
+if($l<2){
+	print "0 Hits, sorry\n";
+	exit;
+};
+
+for $a (1..$l){
+	printf "%-30s %-30s\n",$ar[$a][0],$ar[$a][1];
+	if($counter){
+		$line++;
+		sleep (1) if(($line>4) && ($line%2));
+		sleep (1) if(($line>8) && !($line%2));
+		exit if($line==$maxline);
+		if($line>10){
+			print "- trunctated\n";
+			exit;
+		};
+	};
+};
+
