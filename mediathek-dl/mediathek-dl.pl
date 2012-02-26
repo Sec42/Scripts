@@ -102,7 +102,7 @@ my $url2=${
 
 #rtmp://artestras.fcod.llnwd.net/a3903/o35/MP4:geo/videothek/EUR_DE_FR/arteprod/A7_SGT_ENC_04_040261-000-A_PG_HQ_DE?h=404905af3f3096a4b903ca476b089063
 
-if (!($url2=~ m!(rtmp)://([^/]*)/(.*)/(MP4:.*)!)){
+if (!($url2=~ m!(rtmp)://([^/]*)/(.*)/(MP4:.*)!i)){
 	die "Can't match URL: $url2\n";
 }; 
 
