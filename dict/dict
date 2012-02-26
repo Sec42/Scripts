@@ -1,54 +1,119 @@
 #!/usr/bin/perl
 
-$rcs='$Id: dict,v 1.1 2003/02/04 12:19:53 sec Exp sec $';
+# Simple commandline script to query dict.leo.org
+# (c) by Stefan `Sec` Zehl - (first version from < 2001 )
+
+use Encode qw(decode);
+use encoding ':locale';
+use warnings;
+use strict;
+
+my %uml= (
+	A => "Ä",
+	O => "Ö",
+	U => "Ü",
+	a => "ä",
+	o => "ö",
+	u => "ü",
+);
 
 $|=1;
 
-if($ARGV[0] eq "-counter"){
-	$counter++;shift;
-};
+use Getopt::Long;
+my $counter = 0;
+my $verbose = 0;
+my $fr=0;
+my $maxline= 24;
+GetOptions ("fr"      => \$fr,
+		    "counter" => \$counter,
+		    "lines=n" => \$maxline,
+		    "verbose" => \$verbose);
 
-if ($ARGV[0] =~ s/^-n (\d+)\s+//){
-	$maxline=$1+1;
-}else{
-	$maxline=-1;
-};
+my $lang='ende';
+$lang='frde' if ($fr);
 
-($src=$ARGV[0]) =~ y/a-zA-Z_-//cd;
+$maxline=10 if $counter;
 
-open (F,"fetch -o - http://dict.leo.org/\?relink=off\\&search=$src 2>/dev/null|");
+my $src="@ARGV";
+$src =~ y/a-zA-Z_-//cd;
+
+open (F,"-|:encoding(utf8)","fetch -o - http://dict.leo.org/\?lp=${lang}\\&relink=off\\&sectHdr=off\\&search=$src 2>/dev/null");
+#open (F,"-|:encoding(utf8)","cat _test");
 while(<F>){
-	last if /potenziell/;
+	last if /method="POST" name="WORDS"/;
 };
+s/.* id="results"//;
+
+#remove single-cell internal tables. *sigh* 02/2012
+s{<table[^>]*>
+<tbody[^>]*>
+<tr[^>]*>
+<td[^>]*>
+([^>]*)
+</td>
+</tr>
+</tbody>
+</table>
+}{$1}gix;
+
+# Ende des relevanten:
 s/<\/table>.*//i;
+s!Informationen aus dem Umfeld der Suche.*!!;
+	
 s/\n/ /g;
 s/^.*?(<tr>)/$1/i;
 s{</t[dhr]>}{}gi;
+
+if(m!ein Service von!){
+	s{<a href="[^"]*"(?: [^>]+)?>(.*?)</a>}{$1}gi;
+	s{\*\) ein Service von \S+}{}gi;
+	s{</br>}{}gi;
+};
+
+s{<(/?)strong>}{<${1}b>}gi;
 s{</?b>}{\002}gi if($counter);
 s{</?b>}{}gi;
+
 s{</?font[^>]*>}{}gi; # stoopid new font size=1 feature.
-# Neue Grammatik-Bildchen 08/2002
-s{<A HREF="[^"]*"(?: target="(?:_blank|mw)")?><IMG BORDER="0" ALT="\w*" (?:WIDTH=\d+ |HEIGHT=\d+ )*SRC="[^"]+"(?: target=[^> ]+)?></A> }{ }gi;
+s!&(.)uml;!$uml{$1}!g;
+
+s{<ul><li>(.*?)</li></ul>}{$1}gi;
+
+s{<A HREF="(?:ende|frde)[^>]*>(.*?)</A>}{$1}ig;
+
 # Umstellung 05/2001
 s{&nbsp;}{ }g;
-s{<t[dh][^>]*>\s+<}{<}gi;
-s{<i>\s*([^<]+)</i>}{/$1/}gi;
+s{(?:&#160;)+}{ }g;
 
-$l=0;$cnt=0;
+s{<i(?: class="\w+")?>\s*([^<]+)</i>}{/$1/}gi;
+s{<sup>\s*([^<]+)</sup>}{[$1]}gi;
+s{<small(?: class="\w+")?>\s*([^<]+)</small>}{$1}gi;
+s{<span class="\w+">\s*([^<]+)</span>}{$1}gi;
+s{<small>\s*([^<]+)</small>}{$1}gi; # Nested <small>s - how stupid.
+
+# Additions 02/2012 - remove some useless tags
+s{<input[^>]*>}{}gi;
+s{<span [^>]+>\s*</span>}{}gi;
+s{<a href[^>]+>\s*</a>}{}gi;
+
+
+### Parse the table...
+my ($l,$cnt)=(0,0);
+my @ar; # Result table
 
 while ($_){
-if (s/^<tr(?:\s[^>]*)?>\s*//i){
-	$cnt=0;$l++;
-} elsif(s/^<t[dh](?:\s[^>]*)?>\s*(.*?)\s*(<t[hdr][ >]|$)/$2/i){
-	$q=$1;
-	$q =~ s/<[^>]+>//g if ($tag);
-	$ar[$l][$cnt++]=$q;
-}elsif (s/<\/table>.*?<table>//i){
-	#
-}else{
-	print "End: $_";
-	last;
-};
+	if (s/^<tr(?:\s[^>]*)?>\s*//i){
+		$cnt=0;$l++;
+	} elsif(s/^<t[dh](?:\s[^>]*)?>\s*(.*?)\s*(<t[hdr][ >]|$)/$2/i){
+		my $q=$1;
+#		$q =~ s/<[^>]+>//g if ($tag);
+		$ar[$l][$cnt++]=$q;
+	}elsif (s/<\/table>.*?<table>//i){
+		#
+	}else{
+		print "End: $_";
+		last;
+	};
 };
 
 if($l<2){
@@ -56,17 +121,62 @@ if($l<2){
 	exit;
 };
 
-for $a (1..$l){
-	printf "%-30s %-30s\n",$ar[$a][0],$ar[$a][1];
-	if($counter){
-		$line++;
-		sleep (1) if(($line>4) && ($line%2));
-		sleep (1) if(($line>8) && !($line%2));
-		exit if($line==$maxline);
-		if($line>10){
+#use Data::Dumper; print Dumper \@ar;
+
+sub mystrprint;
+my $weitere=0;
+my $line=0;
+for $a (3..$l){
+	next if $ar[$a][1] eq "";
+
+	next if  $ar[$a][1] eq "Unmittelbare Treffer";
+	next if  $ar[$a][1] eq "Keine Grundformen ableitbar";
+	$weitere=1 if ($ar[$a][1] eq "Weitere Treffer");
+
+	$ar[$a][3]="" if !defined $ar[$a][3];
+
+	if(!$counter && $ar[$a][3] eq ""){
+		print "\n";
+	};
+
+	if(!$verbose){
+		if(($counter||$weitere) && $line>$maxline){
+			print "- trunctated\n";
+			exit;
+		};
+		if($line>2*$maxline){
 			print "- trunctated\n";
 			exit;
 		};
 	};
+#	printf "%-30s %-30s\n",$ar[$a][1],$ar[$a][3];
+	print 
+		mystrprint (30,$ar[$a][1]),
+		mystrprint (30,$ar[$a][3]),
+		"\n";
+	$line++;
+	if($counter){
+		sleep (1) if(($line>4) && ($line%2));
+		sleep (1) if(($line>8) && !($line%2));
+	};
 };
 
+sub mystrprint {
+	my $len=shift;
+	my $str=shift;
+	my $out;
+
+	for (map {substr($str,$_,1) } (0..length($str))){
+		$out.=$_;
+		next if($_ eq "\x2");
+		$len--;
+#		last if $len==0;
+	};
+	$len=1 if($len<0);
+	if($len>0){
+		$out.=" "x$len;
+	};
+	return $out;
+};
+
+	
