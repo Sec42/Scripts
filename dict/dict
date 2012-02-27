@@ -42,6 +42,7 @@ open (F,"-|:encoding(utf8)","fetch -o - http://dict.leo.org/\?lp=${lang}\\&relin
 while(<F>){
 	last if /method="POST" name="WORDS"/;
 };
+$_="" if !defined $_; # quick hack if no hits.
 s/.* id="results"//;
 
 #remove single-cell internal tables. *sigh* 02/2012
