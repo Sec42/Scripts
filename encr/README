@@ -1,0 +1,8 @@
+Simple commandline tool to encrypt Password hashes
+
+encr test  # Use system default (DES?)
+encr test 1 # Use system method 1 (MD5)
+
+You can also specify the salt, if you wish:
+encr test ab # Use system default with salt "aa"
+encr test '$1$aabb' # Use method 1 with salt "aabb"

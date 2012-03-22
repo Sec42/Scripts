@@ -1,0 +1,18 @@
+#! /usr/bin/perl
+srand(time ^ $$);
+@a=('.','/','0'..'9','A'..'Z','a'..'z');
+
+if ($ARGV[1]){
+	$b=$ARGV[1];
+	if($b=~/^\d+$/){
+		$b="\$$b\$";
+	};
+	if($b=~/^\$\d+\$$/){
+		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
+		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
+	};
+}else{
+	$b="$a[rand($#a)]$a[rand($#a)]";
+};
+
+print crypt($ARGV[0], $b),"\n";
