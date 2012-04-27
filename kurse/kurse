@@ -1,7 +1,7 @@
 #!/usr/bin/perl -s
 
 # -subst:  do substitute some Waehrungskuerzel
-# -parens: Output for parens
+# -units:  Output suitable for units(1)
 # -fetch:  fetch new values.
 
 #use LWP::Simple;
@@ -124,9 +124,6 @@ for (keys %NAME){
 	};
 };
 
-if($parens){
-	print "Parens Currency\n";
-};
 if($units){
 	print "euro\t!f!\n";
 		print <<EOF;
@@ -272,12 +269,7 @@ sub print(){
 
 	$curp=$chg{$cur} if (defined $chg{$cur} && $subst);
 
-	if ($parens){
-#		print "$curp\tConv   0   $KURS{$cur}\n";
-		my $s=sprintf "%s\tConv   0   %f\n",$curp,$KURS{$cur};
-		$s=~s/\./,/;
-		print $s;
-	}elsif ($units){
+	if ($units){
 #		($curp =$NAME{$cur})=~s/ //;
 		print "\L$cur\E\t1|$KURS{$cur} euro\n";
 		if(defined $chg{$cur}){
@@ -298,4 +290,5 @@ sub print(){
                 };
 	}
 };
+
 
