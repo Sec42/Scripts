@@ -1,0 +1,301 @@
+#!/usr/bin/perl -s
+
+# -subst:  do substitute some Waehrungskuerzel
+# -parens: Output for parens
+# -fetch:  fetch new values.
+
+#use LWP::Simple;
+use XML::LibXML;
+
+$conv='
+# Refernce:
+EUR 1 Euro
+
+# EU-fixed.
+BEF 40.3399 Belgian franc
+DEM 1.95583 Deutsche Mark
+ESP 166.386 Spanish peseta
+FRF 6.55957 French franc
+IEP .787564 Irish pound
+ITL 1936.27 Italian lira
+LUF 40.3399 Luxembourg franc
+NLG 2.20371 Dutch guilder
+ATS 13.7603 Austrian schilling
+PTE 200.482 Portuguese escudo
+FIM 5.94573 Finnish markka
+# From 1.1.2001 on ....
+GRD 340.750 Greek drachma
+
+# Dollar-Fixed
+SAR -3.75 USD Saudi Rial
+
+# Just the names, because XML lacks them
+AUD 0 Australian dollar
+BGN 0 Bulgarian lev
+CAD 0 Canadian dollar
+CHF 0 Swiss franc
+CYP 0 Cyprus pound
+CZK 0 Czech koruna
+DKK 0 Danish krone
+EEK 0 Estonian kroon
+GBP 0 Pound sterling
+HKD 0 Hong Kong dollar
+HUF 0 Hungarian forint
+ISK 0 Icelandic krona
+JPY 0 Japanese yen
+KRW 0 South Korean won
+LTL 0 Lithuanian litas
+LVL 0 Latvian lats
+MTL 0 Maltese lira
+NOK 0 Norwegian krone
+NZD 0 New Zealand dollar
+PLN 0 Polish zloty
+#ROL 0 Romanian leu
+SEK 0 Swedish krona
+SGD 0 Singapore dollar
+SIT 0 Slovenian tolar
+SKK 0 Slovakian koruna
+#TRL 0 Turkish lira
+USD 0 US dollar
+ZAR 0 South African rand
+
+# Update 3/2006
+RON 0 New Romanian leu
+TRY 0 New Turkish lira
+CNY 0 Chinese yuan renminbi
+HRK 0 Croatian kuna
+IDR 0 Indonesian rupiah
+MYR 0 Malaysian ringgit
+PHP 0 Philippine peso
+RUB 0 Russian rouble
+ROL -1 As of 1 July 2005 the currency of Romania is the new Romanian leu (RON). 1 RON equals 10,000 old Romanian lei (ROL). 
+TRL -1 As of 1 January 2005 the currency of the Republic of Turkey is the new Turkish lira (TRY). 1 TRY equals 1,000,000 Turkish liras (TRL).
+';
+
+$chg='
+USD $
+EUR \e
+JPY ¥
+GBP £
+CAD CA$
+AUD AU$
+';
+
+my $tmp="/store/eurofxref-daily.xml";
+if ($fetch){
+	system("fetch -o $tmp http://www.ecb.int/stats/eurofxref/eurofxref-daily.xml");
+#	my $num=mirror("http://www.ecb.int/home/eurofxref.htm", $tmp);
+#	die "fetch failed: $!" if ($num != 200);
+}
+
+my $parser = XML::LibXML->new();
+$parser->keep_blanks(0);
+
+if (-f $tmp){
+	my $doc = $parser->parse_file( $tmp );
+
+#		<Cube time='2003-01-22'>
+#			<Cube currency='USD' rate='1.0718'/>
+
+# XXX: XPath is not able to query for nodenames with an empty namespace
+# prefix but an non-empty namespace URI. How Broken %-(
+# As a workaround we select by attribute.
+# Another workaround would be to query for "//*[local-name() = 'Cube']"
+
+	foreach my $c ( $doc->findnodes('//*[@currency]') ){
+		$conv.=$c->findvalue('@currency')." ".$c->findvalue('@rate')."\n";
+	}
+
+	$date=$doc->findvalue('//*/@time');
+};
+
+if($print || $fetch){print STDERR ":: $date ::\n"};
+
+# Written to the tune of "Follow my Heart" (Paul King)
+map {/^(\S+)\s+([\d.-]+)(?:\s+(.*\S))?/;$KURS{$1}=$2;$NAME{$1}=$3 if($3);$NAME{$1}="unknown longname" if(!$NAME{$1})}
+    grep {!/^\s*$|^#/} split(/\n/,$conv);
+
+map {/^(\S+)\s+((.*)\S)/;$chg{$1}=$2;} grep {!/^\s*$|^#/} split(/\n/,$chg);
+
+for (keys %NAME){
+	if ($KURS{$_} <0 && $NAME{$_} =~ /^[A-Z]{3} /){
+		$NAME{$_}=~s/^(...) //;
+		$KURS{$_}=(-$KURS{$_})*$KURS{$1};
+	};
+};
+
+if($parens){
+	print "Parens Currency\n";
+};
+if($units){
+	print "euro\t!f!\n";
+		print <<EOF;
+forint	1|1 huf
+pound	1|1 cyp
+dollar	1|1 usd
+rand	1|1 zar
+leu	1|1 rol
+tolar	1|1 sit
+sterling	1|1 gbp
+drachma	1|1 grd
+franc	1|1 frf
+guilders	1|1 nlg
+schilling	1|1 ats
+zloty	1|1 pln
+litas	1|1 ltl
+lat	1|1 lvl
+yen	1|1 jpy
+won	1|1 krw
+kroon	1|1 eek
+mark	1|1 dem
+lev	1|1 bgn
+krone	1|1 dkk
+EOF
+};
+
+sub find{
+	my $k=shift;
+	@nam=grep {$NAME{$_}=~/\Q$k/i} keys %NAME;
+
+	if($#nam<0 && $k =~ /^(\w)(\w)(\w)$/){
+		@nam= grep {/$1.$3/io} keys %NAME;
+	};
+	if($#nam<0 && $k =~ /^(\w)(\w)(\w)$/){
+		@nam= grep {/$1$2.|.$2$3/io} keys %NAME;
+	};
+
+	if($#nam==0){
+		print "$k unknown, perhaps you meant $nam[0] ($NAME{$nam[0]})\n";
+	}elsif($#nam>0){
+		print "$k unknown, possible candidates are: @nam\n";
+	}else{
+		print "$k unknown\n";
+	};
+};
+
+if ($counter) {
+
+	my $cmdline=join(" ",@ARGV);
+	$cmdline=~s/^X//;
+	$cmdline=~s/^-l(ist)?\s*// && $list++;
+	$cmdline=~s/^-s(hort)?\s*// && $short++;
+	$cmdline=~s/\s*\/\s*/\//;
+
+	if ($help){
+		print "-list for available currencies\n";
+		print "<currency> to list rates to the Euro\n";
+		print "<currency>/<currency> to print conversion rate\n";
+		print "<value> <currency>/<currency> to convert a value\n";
+		print "Data obtained from the ECB on $date\n";
+		exit(0);
+	};
+
+	if ($list){
+		my $k=join(" ",sort keys %KURS);
+		$k=~s/([^\n]{40,65})[ \n]/$1\n/g;
+		print scalar keys %KURS," Known currencies:\n",$k,"\n";
+		exit(0);
+	};
+	$cmdline =~ s/^(\w+) (\w+) ([\d.]+)$/$3 $1\/$2/;
+
+	@ARGV=split(/ /,$cmdline);
+	if (!($#ARGV>-1) ){
+		print "Data from $date. ",scalar keys %KURS," currencies available.\n";
+		exit(0);
+	}else{
+		foreach my $c (@ARGV){
+			if ($c =~ /^[\d.]+$/){
+				$amount=$c;next;
+			};
+			$c=uc($c);
+			if ($c =~ m{/}){
+				my ($a,$b)=($`,$');
+				if (!defined($KURS{$a})){
+					find($a);
+					next;
+				};
+				if (!defined($KURS{$b})){
+					find($b);
+					next;
+				};
+				if($KURS{$a}<0){
+					print $NAME{$a}."\n";
+					next;
+				};
+				if($KURS{$b}<0){
+					print $NAME{$b}."\n";
+					next;
+				};
+				my $kurs=sprintf "%.5f",$KURS{$a}/$KURS{$b};
+
+				print "Convert $NAME{$a} into $NAME{$b}:\n" if (!$short);
+				if($amount){
+					$ra=$amount." [$a]";$rb=sprintf "%.2f [$b]",$ra*$KURS{$b}/$KURS{$a}
+				}else{
+					$ra=$a;$rb=$b;
+				};
+				if($kurs>1){
+					$kurs=~s/\.?0+$//;
+						printf "%s / %-7s = %s\n",$ra,$kurs,$rb;
+				}else{
+					$kurs=sprintf "%.5f",$KURS{$b}/$KURS{$a};
+					$kurs=~s/\.?0+$//;
+					printf "%s * %-7s = %s\n",$ra,$kurs,$rb;
+				};
+			}else{
+				if (!defined($KURS{$c})){
+					find($c);
+				}else{
+					&print($c);
+				};
+			};
+		};
+	};
+	exit(0);
+};
+
+if ($#ARGV > -1){
+	foreach my $c (@ARGV){
+		&print($c);
+		delete $KURS{$c};
+	};
+}
+if ($all || !($#ARGV>-1) ){
+	foreach my $c (sort {$NAME{$a} cmp $NAME{$b}} keys %KURS){
+		&print($c);
+	};
+};
+
+sub print(){
+	my $cur=shift;
+	my $curp=$cur;
+
+	$curp=$chg{$cur} if (defined $chg{$cur} && $subst);
+
+	if ($parens){
+#		print "$curp\tConv   0   $KURS{$cur}\n";
+		my $s=sprintf "%s\tConv   0   %f\n",$curp,$KURS{$cur};
+		$s=~s/\./,/;
+		print $s;
+	}elsif ($units){
+#		($curp =$NAME{$cur})=~s/ //;
+		print "\L$cur\E\t1|$KURS{$cur} euro\n";
+		if(defined $chg{$cur}){
+			print "$chg{$cur}\t1|1 \L$cur\E\n";
+		};
+	}else{
+#		print "$curp $KURS{$cur} $NAME{$cur}\n";
+		my $kurs=sprintf "%16.9f",$KURS{$cur};
+		$kurs=~s/\.?0+$//;
+		printf "%3s %-15s %s\n",$curp,$kurs,$NAME{$cur};
+	};
+
+	if($counter){
+                if(++$lines>6){
+			sleep(1);
+                        print "- Trunctated\n";
+                        exit(1);
+                };
+	}
+};
+
