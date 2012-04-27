@@ -71,6 +71,16 @@ PHP 0 Philippine peso
 RUB 0 Russian rouble
 ROL -1 As of 1 July 2005 the currency of Romania is the new Romanian leu (RON). 1 RON equals 10,000 old Romanian lei (ROL). 
 TRL -1 As of 1 January 2005 the currency of the Republic of Turkey is the new Turkish lira (TRY). 1 TRY equals 1,000,000 Turkish liras (TRL).
+
+# Update 4/2012
+MXN 0 Mexican peso
+THB 0 Thai baht
+INR 0 Indian rupee
+BRL 0 Brazil real
+ILS 0 Israeli shekel
+# some of the currencybot stuff:
+BYR 0 Belarusian ruble
+UAH 0 Ukrainian hryvna
 ';
 
 $chg='
