@@ -6,6 +6,7 @@
 
 #use LWP::Simple;
 use XML::LibXML;
+use JSON;
 
 $conv='
 # Refernce:
@@ -124,6 +125,35 @@ for (keys %NAME){
 	};
 };
 
+# Additional currencies from currencybot (04/2012)
+my $tmp="/store/currencybot-daily.json";
+if ($fetch){
+	system("fetch -o $tmp https://raw.github.com/currencybot/open-exchange-rates/master/latest.json");
+}
+if (-f $tmp){
+	my $json;
+	open(my $file,"<",$tmp);
+	$json=join("",<$file>);
+	close($file);
+	my $doc = decode_json($json);
+	if(!defined $KURS{$doc->{base}}){
+		warn "Currencybot base ($doc->{base}) unknown\n";
+	}else{
+		foreach my $c (keys %{$doc->{rates}}){
+			if (!defined $NAME{$c}){
+				$NAME{$c}="unknown longname (currencybot)";
+			};
+			if (!$KURS{$c}){
+				$KURS{$c}=$doc->{rates}{$c}*$KURS{$doc->{base}};
+			};
+		};
+	};
+	use POSIX qw(strftime);
+	$date2=POSIX::strftime("%Y-%m-%d %H:%M",localtime $doc->{timestamp});
+};
+
+
+
 if($units){
 	print "euro\t!f!\n";
 		print <<EOF;
@@ -184,6 +214,7 @@ if ($counter) {
 		print "<currency>/<currency> to print conversion rate\n";
 		print "<value> <currency>/<currency> to convert a value\n";
 		print "Data obtained from the ECB on $date\n";
+		print "additional Data from Currencybot on $date2\n";
 		exit(0);
 	};
 
