@@ -162,6 +162,8 @@ if (-f $tmp){
 	$date2=POSIX::strftime("%Y-%m-%d %H:%M",localtime $doc->{timestamp});
 };
 
+if($print || $fetch){print STDERR ":: $date2 ::\n"};
+exit if ($silent);
 
 
 if($units){
