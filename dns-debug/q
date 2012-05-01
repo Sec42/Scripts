@@ -1,0 +1,522 @@
+#!/usr/bin/perl 
+
+# $Id$
+
+use Net::DNS;
+use strict;
+use Data::Dumper;
+
+sub req;
+sub resolve_single;
+sub mkname;
+
+$|=1;
+
+# Enable v6 if Socket6 module is installed.
+my $v6yes=0;
+eval qq{ use Socket6;};
+$v6yes=1 if !$@;
+
+my $root=undef;
+
+
+our $all=0;
+our $verbose=0;
+our $do_rr;
+
+while ($ARGV[0] =~ /^-/) {
+	my $arg=shift;
+	if($arg =~ /^(-h|--help|-\?)/){
+		print STDERR <<usage;
+Usage:
+q <hostname> [<recordtype>]  # Check <name> for <recordtype (default "A")
+q <ip-address>               # Check v4 or v6 reverse.
+q -[x46] <hostname>          # same as above, but resolve <hostname> first.
+
+"q" assumes that everything is OK near the "root" and skips a few servers
+to speed itself up. Use "q -a" to force checking everything.
+
+Use "q -v" to display all responses while checking.
+
+usage
+		print STDERR "v6 support ",($v6yes?"":"not "),"enabled.\n";
+		exit(1);
+	};
+	if($arg =~ /^-r(oot)?/){
+		$root=shift;
+		next;
+	};
+
+	if($arg =~ /^-a(ll)?/){
+		$all=1;
+		next;
+	};
+
+	if($arg eq "-v"){
+		$verbose=1;
+		next;
+	};
+
+	if($arg eq "-x" || $arg eq "-4"){
+		$do_rr= 4;
+		next;
+	};
+	if($arg eq "-6"){
+		$do_rr= 6;
+		next;
+	};
+	print "Unknown option $arg\n";
+	exit(255);
+};
+
+# Rest of argument parsing
+my($q,$t);
+my $def_t = "A";
+$q= shift || "42.org";
+
+if(defined $do_rr){
+	my $af= ($do_rr eq '6')?'AF_INET6':'AF_INET';
+	$q=eval qq{
+		use Socket; use Socket6;
+		return inet_ntop($af,(gethostbyname2(\$q ,$af))[4]);
+	};
+#	print "NewQ: $q | $@\n"; exit;
+};
+
+my $tt=&mkname($q);
+if($tt ne $q){
+	$q=$tt; $def_t="PTR";
+};
+
+$t= shift || $def_t;
+
+
+
+# Where to start querying?
+my %start=&req($root,".");
+my @servers=@{$start{ans}};
+@servers= @{$start{ns}} if !@servers;
+print "\n";
+
+
+my @next;
+my %done;
+
+my $prefix="";
+my @finale;
+while (1){
+	my @response;
+	undef @response;
+
+	if($#servers <0){
+		print "Ran out of servers to test\n";
+		exit(1);
+	};
+
+	my %uniq=();
+	@servers = grep { !$uniq{lc $_->nsdname}++ } @servers;
+
+	print "Level: ",$prefix||"."," ";
+
+	if($prefix =~ /^(\d+\.in-addr\.arpa|ip6\.arpa|\w*)\.?$/ && !$all){
+		my $n=int(rand(scalar@servers));
+		print "- Choosing server $n/",scalar@servers,"\n";
+		@servers=($servers[$n]);
+	}else{
+		print "- Querying ",scalar@servers," servers\n";
+	};
+# Iterate, and query everybody for our cache.
+	my (%diffhelp)=();
+	my $sctr=0;
+	for my $z (@servers){
+		my $name=$z->nsdname;
+		my $ip=$name;
+		print " ","| "x($sctr),",-","--"x($#servers-$sctr)," ";
+		$sctr++;
+
+		if ($v6yes){
+			$ip=resolve_single $name;
+			if($ip=~/:/){
+				printf "%-26s: ",substr($name,0,22)."[v6]";
+			}else{
+				printf "%-26s: ",substr($name,0,26);
+			};
+		}else{
+			printf "%-26s: ",substr($name,0,26);
+		};
+		if(exists($done{lc $name}) && !$done{lc $name}{broken}){
+			print "cached\n";
+		}else{
+			$done{lc $name}={req($ip,$q,$t)};
+		};
+#response cache for incon-checking
+		for my $y (@{$done{lc $name}{ans}}){
+			$diffhelp{$y->string}{lc $name}=1;
+		};
+		for my $y (@{$done{lc $name}{ns}}){
+			$diffhelp{$y->string}{lc $name}=1;
+		};
+	};
+
+	# Check if ans && ns are inconsistent:
+	my $incon=0;
+	for my $out (sort keys %diffhelp){
+		for my $x (@servers){
+			if(! $diffhelp{$out}{lc $x->nsdname}){
+				$incon++;
+			};
+		};
+	};
+
+	if ($incon>0 || $verbose){
+		for my $out (sort keys %diffhelp){
+			print " ";
+			for my $x (@servers){
+				if($diffhelp{$out}{lc $x->nsdname}){
+					print "+ ";
+				}else{
+					print "- ";
+				};
+			};
+			print "|",$out,"\n";
+		};
+	};
+    print "\nCheck above for $incon Inconsistencies!\n" if($incon>0);
+
+	push @servers,@next;
+	@next=();
+
+	my %uniq=();
+	@servers = grep { !$uniq{lc $_->nsdname}++ } @servers;
+
+	print "\n";
+	my $warn=0;
+	my $ok=0;
+# Iterate, and find shortest next delegation.
+	my $plen=length($prefix);
+	my $minclen=0;
+	my $curfix;
+	my $good=0;
+	my $t_cname;
+	for (@servers){
+		my $name=$_->nsdname;
+		my @ns = @{$done{lc $name}{ns}};
+		if($#ns == -1 && uc $t eq "NS"){
+			@ns = @{$done{lc $name}{ans}};
+		};
+
+		if($done{lc $name}{aa}){
+			if(@{$done{lc $name}{ans}} > 0){
+#				push @finale,$_;
+#				$_=undef;
+#				next;
+			}else{
+#				print "Huh? $name aa but no ans?\n";
+#				$warn=1;
+			};
+		};
+
+		if($done{lc $name}{broken}){
+			$_=undef;
+			$warn=1;
+			print "$name: no result (see above)\n";
+			next;
+		};
+
+		if($#ns == -1 ){
+			if($done{lc $name}{aa}){
+				print "$name: Strange server (aa, but no NS) [PowerDNS, maybe]\n";
+			}else{
+				print "$name: Server broken! (no NS returned)\n";
+				$warn=1;
+				$_=undef;
+				next;
+			};
+			$warn=1;
+			$curfix=$prefix; # AA and no NS == last query, hopefully.
+		}else{
+			$curfix=$ns[0]{name}; # XXX: check all are same
+		};
+
+		for my $t_ans (@{$done{lc $name}{ans}}){
+			if ($t_ans->{type} eq "CNAME"){
+				$t_cname=$t_ans->cname;
+			}else{ 
+				# Any other answer means the cname has already been resolved
+				# for us.  XXX: This answer may not be authorative, but for now
+				# we still belive it.
+				$good=1;
+			}
+		};
+
+		for my $a_ns (@ns){
+			$a_ns->{parent}=$name;
+			die "$name: returns both $a_ns->{name} and $curfix auth records?"
+				if($a_ns->{name} ne $curfix);
+			die "$name: returns auth records not of class 'IN'"
+				if(     $a_ns->class ne "IN");
+
+			if( $a_ns->type  eq "SOA"){
+# NOTE: If NS has no record at that name, we get NXDOMAIN
+# but if there is a record, just not of that type, we get
+# aa=1, ans=0, and the SOA in the AUTH section.
+				if($done{lc $name}{aa} && @{$done{lc $name}{ans}} == 0){
+					$warn=1;
+					print "$name: AUTH SOA with aa=1, no record of requested type\n";
+					$done{lc $name}{ans}=$done{lc $name}{ns};
+				}else{
+
+					$warn=1;
+					print "$name: returned an AUTH SOA. Misguided query?\n";
+				};
+#				$a_ns->print;
+			}elsif( $a_ns->type  ne "NS"){
+				die "$name: returns auth records not of type 'NS'";
+			};
+		};
+
+		my $clen=length($curfix);
+
+		if (    lc substr($prefix,-min($plen,$clen)) ne
+				lc substr($curfix,-min($plen,$clen)) 
+				and $prefix != ""){
+			die "$name: illegal delegation chain '$prefix' / '$curfix'";
+		};
+
+		if( $plen >= $clen ){
+			if(@{$done{lc $name}{ans}} == 0){
+				$warn=1;
+				print "$name: I am LAME! (referred from: $_->{parent})\n";
+			};
+		}else{
+			$minclen=$clen if ($minclen==0 || ($clen < $minclen));
+		};
+	};
+
+# If there is only a CNAME, we need to query for that one.
+	if(!$good && defined $t_cname && $q ne $t_cname){
+		$q=$t_cname;
+		print "CNAME found, changing query to: $q\n\n";
+	};
+	if($good && defined $t_cname && $q ne $t_cname){
+		last; # We are done.
+	};
+
+# Do not venture deeper than the query!
+	if($minclen> length($q)){
+		$warn=1;
+		print "WARN: stopped query longer than original query\n";
+		$minclen=length($prefix);
+	};
+
+# Advance to next query level.
+	$curfix=substr($curfix,-$minclen);
+	if($prefix eq $curfix || $minclen==0){
+		print "\n" if($warn);
+		last;
+	};
+	$prefix=$curfix;
+
+# Build next step.
+	my $deferred=0;
+	my @old=grep {$_ ne undef} @servers;
+	@servers=();
+	for(@old){
+		my $name=$_->nsdname;
+		my @ns = @{$done{lc $name}{ns}};
+		if($#ns == -1 && uc $t eq "NS"){
+			@ns = @{$done{lc $name}{ans}};
+		};
+		my $curfix=$ns[0]{name};
+		my $clen=length($curfix);
+
+		if($clen>$minclen){
+#			print "$name: Deferred knowledgeable server\n";
+			$deferred++;
+			push @next,$_;
+			$_=undef;
+			next;
+		};
+		push @servers,@ns; #XXX a) check each @ns is same.
+	};
+	if($deferred){
+		$warn=1;
+		print "Deferred $deferred knowledgeable servers\n" ;
+	};
+
+	if($minclen ==0 ){
+		die "minclen == 0";
+	};
+
+	print "\n" if($warn);
+};
+
+if(!$verbose){
+	my %diffhelp=();
+	for my $s (@servers){
+		for my $y (@{$done{lc $s->nsdname}{ans}}){
+			$diffhelp{$y->string}{lc $s->nsdname}=1;
+		};
+	};
+	for my $out (sort keys %diffhelp){
+		print " ";
+		for my $x (@servers){
+			if($diffhelp{$out}{lc $x->nsdname}){
+				print "+ ";
+			}else{
+				print "- ";
+			};
+		};
+		print "|",$out,"\n";
+	};
+};
+my @servers=grep {$_ ne undef} @servers;
+if(@servers){
+	for(@servers){
+		my $name=$_->nsdname;
+		if(@{$done{lc $name}{ans}} < 1){
+			print "AMNESIAC: $name\n";
+		};
+	};
+}else{
+	die "no non-lame servers?\n" 
+};
+print "\nFinished.\n";
+exit;
+
+my $res; # singleton
+
+sub req{ # req($server, $query, $type);
+  my %hop;
+  my $server=shift;
+  my $q=shift || die;
+  my $t=shift || "NS";
+
+  $res||=Net::DNS::Resolver->new(
+		  recurse		=> 0,
+		  retry			=> 1,
+		  retrans		=> 1,
+		  udp_timeout	=> 3,
+		  persistent_udp => 1,
+		  );
+#     $res->debug(1);
+  
+  $res->nameservers($server) if ($server);
+  my $quiet;
+  $quiet=1 if(!$server);
+
+  my $query;
+
+  my $error=3;
+  while(1){
+	  $query = $res->send($q,$t);
+	  last if ($query);
+
+	  if($error-->0){
+		  if($res->errorstring eq "query timed out"){
+			  print "",""x$error,"#"," "x$error;
+ 		  }elsif($res->errorstring eq "no nameservers"){
+ 			  print "[does not resolve] !!\n";
+ 			  return (ans=>[],aa=>0,ns=>[],broken=>1);
+		  }else{
+			  print "\n" if($error==2);
+			  print STDERR "query error: ". $res->errorstring,"\n";
+		  };
+	  }else{
+		  print "[". $res->errorstring."] !!\n";
+		  return (ans=>[],aa=>0,ns=>[],broken=>1);
+	  };
+  };
+
+#print Dumper \$query;
+  my $hdr   = $query->header;
+
+#  printf "[%-15s] ",$query->answerfrom;
+  unless ($quiet){
+	  print $hdr->rcode;
+
+	  print " aa=1"  if($hdr->aa);
+	  print " rd=1?" if($hdr->rd);
+	  print " ans=1" if($hdr->ancount);
+	  print " ra=1"  if($hdr->ra);
+  };
+  die "Trunctated?"        if($hdr->tc);
+
+  if ($hdr->rcode ne "NOERROR"){
+ 	  print "\n";
+	  return (ans=>[],aa=>0,ns=>[],broken=>1);
+  }
+
+  $hop{aa}=1 if ($hdr->aa);
+
+  if($hdr->ancount){
+	$hop{ans}=[$query->answer];
+  }else{
+	$hop{ans}=[];
+  };
+
+
+  if($hdr->nscount){
+	$hop{ns}=[$query->authority];
+  }else {
+	$hop{ns}=[];
+  };
+
+  if($hdr->arcount){
+	$hop{add}=[$query->additional];
+  }else {
+	$hop{add}=[];
+  };
+
+  print "\n" unless($quiet);
+
+  return %hop;
+};
+
+sub mkname{
+    my($name,@file);
+    $_=shift;
+
+    if (/^[\d.]+$/){
+        @file=split(/\./);
+        $#file=3;@file=map {$_||0} @file;
+        $name=join(".",reverse @file).".in-addr.arpa";
+    }elsif (/^[\da-f:]+:[\da-f:]+$/i){
+        @file=split(/:/);
+        if($#file!=7){s/::/":".(":"x(8-$#file))/e;};
+        @file=map {split //,sprintf "%04s",$_} split(/:/);
+        if($#file>31){die "Addr too long.";}
+        $#file=31;@file=map {$_||0} @file;
+        $name=join(".",reverse @file).".ip6.arpa";
+    }else{
+        $name=$_;
+    }
+    return $name;
+};
+
+sub min{
+	return $_[0] if ($_[0]<$_[1]);
+	return $_[1];
+};
+
+sub resolve_single{
+	my $hostname=shift;
+
+	if(!$v6yes){
+		return $hostname;
+	};
+
+	my $q=eval qq{
+		use Socket; use Socket6;
+		my \@q=gethostbyname2(\$hostname ,AF_INET6);
+		if(!\@q){
+			return 
+				inet_ntop(AF_INET ,(gethostbyname2(\$hostname ,AF_INET ))[4]);
+		}else{
+			return 
+				inet_ntop(AF_INET6,(gethostbyname2(\$hostname ,AF_INET6))[4]);
+		};
+	};
+	if($@){die "$@";};
+	return $q;
+};

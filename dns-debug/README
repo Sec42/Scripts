@@ -1,0 +1,10 @@
+This script walks the dns delegation chain from . to the given name
+and prints any inconsistencies it finds.
+
+run as "q <name>" (uses A record)
+or "q <name> <recordtype>"
+
+Available command line options are
+"-v" for verbose 
+"-a" to also debug all root NS
+"-r <ip>" to set NS used for .
