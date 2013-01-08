@@ -15,7 +15,7 @@ set -- `cvt $x $y|tail -1`
 shift
 shift
 mode=${mode}_new
-xrandr --delmode VGA1 $mode 2>/dev/null
+xrandr --delmode $vga $mode 2>/dev/null
 xrandr --rmmode $mode 2>/dev/null
 set -x 
 xrandr --newmode $mode "$@"
