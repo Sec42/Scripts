@@ -1,0 +1,26 @@
+#!/bin/sh
+vga=VGA1
+lvds=LVDS1
+x=$1
+y=$2
+if [ -z "$y" ] ; then 
+	echo "Run as $0 xres yres" >&2
+	exit 1
+fi
+mode="${x}x${y}"
+echo ""
+echo "Making $mode work now!"
+echo ""
+set -- `cvt $x $y|tail -1`
+shift
+shift
+mode=${mode}_new
+xrandr --delmode VGA1 $mode 2>/dev/null
+xrandr --rmmode $mode 2>/dev/null
+set -x 
+xrandr --newmode $mode "$@"
+xrandr --addmode $vga $mode
+xrandr --output $vga --mode $mode --same-as $lvds
+set +x
+echo ""
+echo "Hope you're happy now..."
