@@ -159,6 +159,25 @@ for (keys %NAME){
 	};
 };
 
+# Additional currency names from openexchangerates (11/2012)
+my $tmp="/store/currencybot-names.json";
+if ($fetch){
+	read_config();
+	system("fetch -o $tmp http://openexchangerates.org/currencies.json?app_id=$config{oxapi}");
+}
+if (-f $tmp){
+	my $json;
+	open(my $file,"<:bytes",$tmp);
+	$json=join("",<$file>);
+	close($file);
+	my $doc = decode_json($json);
+	foreach my $c (keys %{$doc}){
+		if (!defined $NAME{$c}){
+			$NAME{$c}=$doc->{$c}." (ox)";
+		};
+	};
+};
+
 # Additional currencies from currencybot (04/2012)
 my $tmp="/store/currencybot-daily.json";
 if ($fetch){
