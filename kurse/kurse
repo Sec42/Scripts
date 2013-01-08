@@ -103,6 +103,19 @@ CAD CA$
 AUD AU$
 ';
 
+my %config;
+sub read_config{
+	return if defined %config;
+	eval {
+		use FindBin;
+		use Config::Simple;
+	};
+	Config::Simple->import_from($FindBin::Bin."/.kursecfg",\%config);
+	if(!defined $config{oxapi}){
+		print STDERR "Warning: No oxapi key set\n";
+	};
+};
+
 my $tmp="/store/eurofxref-daily.xml";
 if ($fetch){
 	system("fetch -o $tmp http://www.ecb.int/stats/eurofxref/eurofxref-daily.xml");
@@ -149,7 +162,7 @@ for (keys %NAME){
 # Additional currencies from currencybot (04/2012)
 my $tmp="/store/currencybot-daily.json";
 if ($fetch){
-	system("fetch -o $tmp https://raw.github.com/currencybot/open-exchange-rates/master/latest.json");
+	system("fetch -o $tmp http://openexchangerates.org/latest.json?app_id=$config{oxapi}");
 }
 if (-f $tmp){
 	my $json;
