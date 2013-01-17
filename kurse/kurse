@@ -112,7 +112,8 @@ sub read_config{
 	};
 	Config::Simple->import_from($FindBin::Bin."/.kursecfg",\%config);
 	if(!defined $config{oxapi}){
-		print STDERR "Warning: No oxapi key set\n";
+		print STDERR "Error: No oxapi key set\n";
+		exit(1);
 	};
 };
 
