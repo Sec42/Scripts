@@ -59,7 +59,7 @@ sub config {
 	if($config{xml}){
 		load XML::LibXML;
 	};
-	cache_read unless(defined %cache || $config{disable_cachedb});
+	cache_read unless(%cache || $config{disable_cachedb});
 	$config{_done}=1;
 };
 
@@ -294,7 +294,7 @@ sub mkcache {
 };
 
 END {
-	cache_write unless ($config{disable_cachedb} || !defined %cache);
+	cache_write unless ($config{disable_cachedb} || !%cache);
 };
 
 1;
