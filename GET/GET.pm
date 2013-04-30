@@ -283,6 +283,21 @@ sub get_url {
 	};
 };
 
+sub invalidate_url {
+        my $url=shift;
+        my $shortname=shift || mkcache($url);
+        print STDERR "\nGET: Invalidating $shortname\n" if $verbose>1;
+        if ( -f $shortname ){
+                unlink($shortname.".invalid") if (-f $shortname.".invalid");
+                rename($shortname,$shortname.".invalid");
+        };
+        if(defined $cache{$url}){
+                delete $cache{$url};
+        }else{  
+                print STDERR "\nGET: Trying to invalidate uncached $url\n";
+        };
+};      
+
 sub mkcache {
 	my $url=shift;
 	$url=~s!^http://!!;
