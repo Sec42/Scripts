@@ -286,7 +286,7 @@ sub get_url {
 sub invalidate_url {
         my $url=shift;
         my $shortname=shift || mkcache($url);
-        print STDERR "\nGET: Invalidating $shortname\n" if $verbose>1;
+        print STDERR "\nGET: Invalidating $shortname\n" if $config{verbose}>1;
         if ( -f $shortname ){
                 unlink($shortname.".invalid") if (-f $shortname.".invalid");
                 rename($shortname,$shortname.".invalid");
