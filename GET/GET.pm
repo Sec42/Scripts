@@ -146,6 +146,7 @@ sub check_url{
 	};
 	if(++$cnt > $config{_ratecnt}){
 		my $sleep=$ots-$ts+$config{_ratetime};
+		$sleep=0 if ($sleep<0); # Sanity
 		print STDERR "GET: ratelimit: sleeping ".($sleep)."s ...\n" 
 			if ($config{verbose}>1 || $sleep > 60);
 		sleep($sleep);
