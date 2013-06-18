@@ -36,7 +36,12 @@ print "Thanks.\n";
 open(M,"|/usr/sbin/sendmail -t") || die;
 print M "From: $uid\n";
 print M "To: $uid\n";
-my $subj="CSP report";
+my $subj="new CSP report";
+if($report->{"csp-report"}->{"document-uri"}){
+	$report->{"csp-report"}->{"document-uri"} =~ m!https?://([^/]+)!;
+	my $host="$1";
+	$subj.= " for $host";
+};
 if($report->{"csp-report"}->{request}){
 	$report->{"csp-report"}->{request} =~ m!https?://([^/]+)!;
 	my $host="$1";
