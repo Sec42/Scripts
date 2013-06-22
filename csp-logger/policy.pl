@@ -31,7 +31,17 @@ while(<STDIN>){
 	$req.=$_;
 };
 
-if($ENV{CONTENT_TYPE} ne "application/json"){
+my $report;
+if ($ENV{CONTENT_TYPE} eq "application/json"){
+	$report  = decode_json $req;
+}elsif ($ENV{CONTENT_TYPE} eq "application/x-www-form-urlencoded"){
+	my ($key,$value);
+	while ($req=~ m!([^=]+)=([^&]+)&?!g){
+		($key,$value)=($1,$2);
+		$value =~ s/%([0-9a-f][0-9a-f])/chr hex $1/gie;
+		$report->{"csp-report"}->{$key}=$value;
+	};
+}else{
 	print "Status: 415 Unsupported Media Type\n";
 	domail("CSP content failure", 
 			"CSP report requires application/json, got: $ENV{CONTENT_TYPE}",
@@ -41,7 +51,6 @@ if($ENV{CONTENT_TYPE} ne "application/json"){
 	exit(0);
 };
 
-my $report  = decode_json $req;
 
 if (!defined $report){
 	print "Status: 422 Unprocessable Entity\n";
