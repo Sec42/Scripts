@@ -1,0 +1,380 @@
+#!/usr/local/bin/perl 
+
+use strict;
+use charnames ':full';
+use open ':locale';
+use Encode;
+
+my %switch;
+my $lc;
+my $debug=0;
+
+for (PerlIO::get_layers(STDOUT)){
+	if (/encoding\((.*)\)/ || /(utf8)/ ){
+		$lc||=$1;
+	}
+}
+
+#=== helper functions.
+
+sub rawtoutf8{
+	return encode("utf-8",shift);
+};
+
+sub utf8toraw{
+	my $in=shift;
+	my $r=eval {
+	return decode("utf8",$in,Encode::FB_CROAK);
+	};
+	if($@){ 
+		$r=$@;$r=~s/ at .*//;
+		print "utf8 error: $r\n";
+		$r=undef;
+	};
+	return $r ;
+}
+
+sub isutf8{
+	my $x=shift;
+	return 0 if $_[0] =~ /^[\x{00}-\x{7f}]/;
+	eval {
+		decode("utf8",$x,Encode::FB_CROAK);
+	};
+	return 0 if($@);
+	return 1;
+};
+
+#=== Detect and parse input formats
+
+sub isHTML{
+	my $hex=shift;
+	return 1 if $hex=~ /^&#\d+;$/i;
+	return 0;
+};
+
+sub parseHTML{
+	my $hex=shift;
+	$hex=~s/&#(\d+);/$1/g;
+	return chr $hex;
+};
+
+sub isUCS{
+	my $in=shift;
+	return 0 if $in=~ /^0x[0-9a-f]{7,}$/i;
+	return 0 if $in=~ /^0x[2-9a-f][0-9a-f]{5}$/i;
+	return 1 if $in=~ /^0x[0-9a-f]{3,}$/i;
+	return 1 if $in=~ /^U\+[0-9a-f]+$/i;
+	return 0;
+};
+
+sub parseUCS{
+	my $hex=shift;
+	$hex=~s/^U\+//g;
+	$hex=~s/^0x//g;
+	return chr hex $hex;
+};
+
+sub isCharname{
+	$_ = charnames::vianame(uc shift);
+	if($_ eq ""){
+		return 0;
+	};
+	return 1;
+};
+
+sub parseCharname{
+	my $x = shift;
+	$_ = charnames::vianame(uc $x);
+	if($_ eq ""){
+		print "Character name '$x' unknown.\n";
+		return "";
+	};
+	return chr $_;
+};
+
+sub ishex{
+	my $hex=shift;
+	return 1 if $hex=~ /^0x/;
+	return 1 if $hex=~ /^([0-9a-f]{2}(| |$))+$/i;
+	return 0;
+};
+
+sub rawhex{
+	my $hex=shift;
+	$hex=~s/0x//g;
+	$hex=~y/[0-9a-fA-F]//cd;
+	return join("",pack("H*",$hex));
+};
+
+sub isirc{
+	my $hex=shift;
+	return 1 if $hex=~ /^([A-P]{2})+$/;
+	return 0;
+};
+sub rawirc{
+	my $hex=lc shift;
+	$hex=~y/a-p/0-9a-f/;
+	return rawhex($hex);
+};
+
+
+#=== Output formats
+
+sub utf8_charnames {
+	$_=shift;
+	$_=~s<([^\x{000a}\x{0021}-\x{007e}])>{
+		'\N{'.charnames::viacode(ord $1).'}'
+	}ge;
+	return $_;
+};
+
+sub rawutf8_ircii {
+	my $chr=unpack("H*",shift);
+	$chr=~y/0-9a-f/A-Z/;
+	return "ircII-utf8: \$decode(".$chr.")";
+};
+
+sub rawutf8_verbose {
+	my $input=shift;
+	printf "UTF8 decoder:\n";
+	my $count=0;
+	my $bin;
+	my $return;
+	my $len;
+	for my $chr ($input =~ /./g){
+		$_=unpack("B*",$chr);
+
+		if($count==0){ # New Character.
+			if(/^10/){
+				printf "Error: Expected new character, ".
+					"got continuation byte: %02x (%8s)\n",
+					ord $chr,$_;
+				next;
+			};
+			$bin="";
+			printf "%02x: ",ord $chr;
+			if(/^0/){
+				printf "%s %s: ",$&,$';
+				printf "Normal 7-bit character.";
+				$len=1;$bin=$'
+			}else{
+				if(/^110/){
+					$len=2;
+				}elsif(/^1110/){
+					$len=3;
+				}elsif(/^11110/){
+					$len=4;
+				}elsif(/^111110/){
+					$len=5;
+				}elsif(/^1111110/){
+					$len=6;
+				}elsif(/^11111110/){
+					$len=7;
+				}elsif(/^11111111/){
+					$len=8;
+				};
+				printf "%s %s: ",$&,$';
+				$bin=$';
+				printf "Start of %d-byte character.",$len;
+				if($len>4){
+					printf "(Illegal length)";
+				};
+			};
+			$count=$len;
+		}else{ # Continuation Character needed
+			if(! /^10/){
+				printf "Error: Expected continuation character, ".
+					"got other byte. Reparsing ...\n",
+				$count=0;
+				redo;
+			};
+			printf "%02x: ",ord $chr;
+			if(/^10/){
+				printf "%s %s: ",$&,$';
+				$count--;$bin.=$';
+				printf "Continuation byte.";
+			};
+		};
+		print "\n";
+		if($count==1){ # Character finished. Yay!
+			my $chr= unpack("L",join("",pack("b*",scalar reverse $bin),v0.0.0));
+			if($len>1){
+				while($bin=~s/(?<=[01])([01]{8})( |$)/ $1$2/){};
+				printf "=> $bin (U+%X)\n",$chr;
+			}
+			if($chr> 0x10FFFF){
+				print "Illegal character! (RFC3629 restricts to <= 0x10FFFF)\n";
+			};
+			if(0xD800 <$chr && $chr < 0xDFFF ){
+				print "Illegal character! (RFC3629 forbbids surrogate pairs)\n";
+			};
+			if( 
+					($len>1 && $chr <= 0x7F) ||
+					($len>2 && $chr <= 0x7FF) ||
+					($len>3 && $chr <= 0xFFFF) ||
+					($len>4 && $chr <= 0x1FFFFF) ||
+					($len>5 && $chr <= 0x3FFFFFF) ||
+					($len>6 && $chr <= 0x7FFFFFFF)
+					# 8-byte length is illegal anyway...
+			  ){
+				print "Illegal overlong encoding! (RFC3629 requires minimal encoding)\n";
+			};
+			$return.=pack("U",$chr);
+			$count=0;
+		};
+	};
+	if($count != 0){
+		printf "Error: Expected continuation character, got string end!\n";
+	};
+	return $return;
+};
+
+#===
+
+# Check format
+
+if ($ARGV[0] eq "-counter"){
+	@ARGV=split(/ /,$ARGV[1]);
+	$switch{ircout}=1;
+};
+
+while($ARGV[0] =~ /^-/){
+	$switch{$'}=1;
+	shift;
+};
+
+$debug=1 if $switch{d};
+$debug=1 if $switch{debug};
+
+if($switch{help} || $switch{h}){
+	print "Input format on commandline: (default is autodetect)\n";
+	print "-name\tinput is Unicode character name\n";
+	print "-ucs\tinput is \"U+number\" unicode code point\n";
+	print "-html\tinput is \"&#num;\" html entity\n";
+	print "-hex\tinput is hex bytes\n";
+	print "-irc\tinput is ircII-format hex bytes\n";
+	print "-text\tforce no autodetect\n";
+	print "\n";
+	print "Charset: (default autodetect by locale)\n";
+	print "-utf8\tForce utf8\n";
+	print "-iso:\tiso8859-1\n";
+	print "\n";
+	print "\n";
+	print "Other Switches:\n";
+	print "\n";
+	print "-v\tVerbose (verbose utf8 parser)\n";
+	print "-d\tDebug\n";
+	print "\n";
+	exit;
+};
+
+my $input="@ARGV";
+my ($i_u8);
+
+if (!(
+			$switch{name} || 
+			$switch{ucs} || 
+			$switch{html} || 
+			$switch{hex} || 
+			$switch{irc} || 
+			$switch{text}
+	 )){
+# input autodetect
+	$switch{irc}=1 if isirc($input);
+	$switch{hex}=1 if ishex($input);
+	$switch{ucs}=1 if isUCS($input);
+	$switch{html}=1 if isHTML($input);
+	$switch{name}=1 if isCharname($input);
+};
+
+my $u8verbose;
+my $cs;
+$cs="utf8" if ($switch{utf8});
+$cs="iso" if ($switch{iso});
+$cs="raw" if ($switch{raw});
+
+if(0){ # Parse input formats
+	;
+}elsif($switch{html}){
+	print "type=html, " if ($debug);
+	$input=parseHTML($input);
+	$cs//="raw";
+}elsif($switch{ucs}){
+	print "type=ucs, " if ($debug);
+	$input=parseUCS($input);
+	$cs//="raw";
+}elsif($switch{name}){
+	print "type=charnames, " if ($debug);
+	$input=parseCharname($input);
+	$cs//="raw";
+}elsif($switch{hex}){
+	print "type=hex, " if ($debug);
+	$input=rawhex($input);
+	$u8verbose=1;
+}elsif($switch{irc}){
+	print "type=irc, " if ($debug);
+	$input=rawirc($input);
+	$u8verbose=1;
+}else{
+	print "no type - raw text, " if ($debug);
+	$cs="locale";
+};
+
+if(!defined($cs)){ # detect
+	if (isutf8($input)){
+		$cs="utf8";
+	}else{
+		$cs="locale";
+	};
+	print "csdetect=$cs, " if($debug);
+};
+
+# Do charset conversions
+if($cs eq "raw"){
+	print "cs=raw/none, " if ($debug);
+}elsif($cs eq "locale"){
+	print "cs=$lc(locale), " if ($debug);
+	$input=decode($lc,$input);
+}elsif($cs eq "iso"){
+	print "cs=iso, " if ($debug);
+	$input=decode("iso8859-1",$input);
+}elsif($cs eq "utf8"){
+	print "cs=utf8, " if ($debug);
+	$i_u8= $input;
+#	$input=decode("utf8",$input);
+	$input=undef;
+}else{
+	die "Unknown value of cs: $cs\n";
+};
+print "\n" if($debug);
+
+if(!defined $i_u8){
+	$i_u8= rawtoutf8($input);
+};
+if(!defined $input){
+	$input=utf8toraw($i_u8);
+};
+
+#if ($debug){ use Devel::Peek; print "\nraw:\n"; Dump($input); print "\n"; print "\nu8:\n"; Dump($i_u8); print "\n"; };
+
+if(length($input)==0 && length($i_u8)==0){
+	die "No input?\n";
+};
+
+if(length($input)==1){
+	printf "U+%04X == ",ord $input;
+};
+
+if(length($input)>0){
+	printf "%s\n", utf8_charnames($input);
+}
+
+if($switch{v} || $u8verbose || !isutf8($i_u8)){
+	rawutf8_verbose($i_u8);
+};
+
+printf "Raw: %s\n",$input;
+
+if($switch{ircout}){
+	printf "%s\n", rawutf8_ircii($i_u8);
+};
