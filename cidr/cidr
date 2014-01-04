@@ -1,12 +1,12 @@
-#!/usr/local/bin/perl -w
+#!/usr/local/bin/perl
 
 # This script has gotten really ugly, but it supports:
 # "IPa-IPb" to find smallest single subnet enclosing IPa and IPb
 #   IPa can be BSD-Style 127.1 or even hex (0x7f000001)
 #   IPb can be like IPa, or omit leading octets ".8.255" (to be taken from IPa)
 # "IPa IPb" is same as "IPa-IPb"
-# "IPc/cidr" fixes IPc to network address and prints boundarys of network
-#   IPc can omit trailing octets (10.8 for 10.8.0.0)
+# "IPc/cidr" fixes IPc to network address and prints boundaries of network
+#   IPc can omit trailing octets (10.8/24 for 10.8.0.0/24)
 #   cidr = 0-32
 # "IPa" translates IP into normal, hex, int and BSD-Style.
 # "IPv6" translates IPv6 into short, full and DNS format. Also deals with 6to4
@@ -16,6 +16,7 @@
 # prepend "-a" for more (semi-useful) output in most cases
 
 use strict;
+use warnings;
 
 sub ip2int_bsd { # Supports 127.1 => 127.0.0.1 (BSD style)
 	return hex(shift) if($_[0] =~ /^0x/);
@@ -35,7 +36,7 @@ sub ip2int_bsd { # Supports 127.1 => 127.0.0.1 (BSD style)
 sub ip2int { return unpack("N", pack("C4", split(/\./, $_[0]))); }
 sub int2ip { return join(".", unpack("C4", pack("N", $_[0]))); }
 
-sub ip2int2 { 
+sub ip2int2 { # parse partial ip (getting missing part from second argument)
 	if($_[0]=~s/^\.//){
 		my @q=split(/\./, $_[0]);
 		my @r=split(/\./, int2ip(ip2int_bsd($_[1])));
@@ -48,13 +49,13 @@ sub ip2int2 {
 	}
 }
 
-sub int2ip2 {
+sub int2ip2 { # strange BSD-style with only one "."
 	my @r=unpack("C4", pack("N", $_[0]));
 	my @q=@r;$r[0]=0;
 	return $q[0].".".unpack("N",pack("C4",@r));
 }
 
-sub int2ip3 {
+sub int2ip3 { # strange BSD-style with only two "."s
 	my @r=unpack("C4", pack("N", $_[0]));
 	my @q=@r;$r[0]=0;$r[1]=0;
 	return $q[0].".".$q[1].".".unpack("N",pack("C4",@r));
@@ -123,7 +124,7 @@ if($ARGV[0] =~ /(.*)[ -]+(.*)/){
 
 if((defined $ARGV[1]) &&($ARGV[1] eq "-")){$ARGV[1]=$ARGV[2]};
 
-if($ARGV[0] =~ /:/){
+if($ARGV[0] =~ /:/){ # IPv6 handling.
 	my(@file,$file,$name,$zone);
 	$_=$ARGV[0];
 	y/A-F/a-f/;
@@ -294,7 +295,7 @@ if($ARGV[0] =~ /:/){
 	}else{
 		exit(0);
 	};
-}
+} # End of IPv6, do IPv4 stuff
 
 if(($ARGV[0] =~ /[xa-fA-F]/)&&($ARGV[0] =~ /^(?:0x)?([a-f\d]+)$/i)){
 	$ARGV[0]= join ".",map {hex $_} ($1=~/(..)/g);

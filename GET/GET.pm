@@ -59,7 +59,7 @@ sub config {
 	if($config{xml}){
 		load XML::LibXML;
 	};
-	cache_read unless(defined %cache || $config{disable_cachedb});
+	cache_read unless(%cache || $config{disable_cachedb});
 	$config{_done}=1;
 };
 
@@ -146,6 +146,7 @@ sub check_url{
 	};
 	if(++$cnt > $config{_ratecnt}){
 		my $sleep=$ots-$ts+$config{_ratetime};
+		$sleep=0 if ($sleep<0); # Sanity
 		print STDERR "GET: ratelimit: sleeping ".($sleep)."s ...\n" 
 			if ($config{verbose}>1 || $sleep > 60);
 		sleep($sleep);
@@ -283,6 +284,21 @@ sub get_url {
 	};
 };
 
+sub invalidate_url {
+        my $url=shift;
+        my $shortname=shift || mkcache($url);
+        print STDERR "\nGET: Invalidating $shortname\n" if $config{verbose}>1;
+        if ( -f $shortname ){
+                unlink($shortname.".invalid") if (-f $shortname.".invalid");
+                rename($shortname,$shortname.".invalid");
+        };
+        if(defined $cache{$url}){
+                delete $cache{$url};
+        }else{  
+                print STDERR "\nGET: Trying to invalidate uncached $url\n";
+        };
+};      
+
 sub mkcache {
 	my $url=shift;
 	$url=~s!^http://!!;
@@ -294,7 +310,7 @@ sub mkcache {
 };
 
 END {
-	cache_write unless ($config{disable_cachedb} || !defined %cache);
+	cache_write unless ($config{disable_cachedb} || !%cache);
 };
 
 1;

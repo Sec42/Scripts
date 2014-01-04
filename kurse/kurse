@@ -1,4 +1,4 @@
-#!/usr/bin/perl -s
+#!/usr/bin/perl -CSAL
 
 # -subst:  do substitute some Waehrungskuerzel
 # -units:  Output suitable for units(1)
@@ -7,6 +7,17 @@
 #use LWP::Simple;
 use XML::LibXML;
 use JSON;
+
+while ($ARGV[0]=~/^-/){
+	my $opt=shift;
+	$fetch=1 if($opt eq "-fetch");
+	$units=1 if($opt eq "-units");
+	$subst=1 if($opt eq "-subst");
+	$counter=1 if($opt eq "-counter");
+	$silent=1 if($opt eq "-silent");
+};
+
+$|=1;
 
 $conv='
 # Refernce:
@@ -92,6 +103,20 @@ CAD CA$
 AUD AU$
 ';
 
+my %config;
+sub read_config{
+	return if %config;
+	eval {
+		use FindBin;
+		use Config::Simple;
+	};
+	Config::Simple->import_from($FindBin::Bin."/.kursecfg",\%config);
+	if(!defined $config{oxapi}){
+		print STDERR "Error: No oxapi key set\n";
+		exit(1);
+	};
+};
+
 my $tmp="/store/eurofxref-daily.xml";
 if ($fetch){
 	system("fetch -o $tmp http://www.ecb.int/stats/eurofxref/eurofxref-daily.xml");
@@ -135,14 +160,33 @@ for (keys %NAME){
 	};
 };
 
-# Additional currencies from currencybot (04/2012)
-my $tmp="/store/currencybot-daily.json";
+# Additional currency names from openexchangerates (11/2012)
+my $tmp="/store/currencybot-names.json";
 if ($fetch){
-	system("fetch -o $tmp https://raw.github.com/currencybot/open-exchange-rates/master/latest.json");
+	read_config();
+	system("fetch -o $tmp http://openexchangerates.org/currencies.json?app_id=$config{oxapi}");
 }
 if (-f $tmp){
 	my $json;
-	open(my $file,"<",$tmp);
+	open(my $file,"<:bytes",$tmp);
+	$json=join("",<$file>);
+	close($file);
+	my $doc = decode_json($json);
+	foreach my $c (keys %{$doc}){
+		if (!defined $NAME{$c}){
+			$NAME{$c}=$doc->{$c}." (ox)";
+		};
+	};
+};
+
+# Additional currencies from currencybot (04/2012)
+my $tmp="/store/currencybot-daily.json";
+if ($fetch){
+	system("fetch -o $tmp http://openexchangerates.org/latest.json?app_id=$config{oxapi}");
+}
+if (-f $tmp){
+	my $json;
+	open(my $file,"<:bytes",$tmp);
 	$json=join("",<$file>);
 	close($file);
 	my $doc = decode_json($json);
@@ -162,7 +206,59 @@ if (-f $tmp){
 	$date2=POSIX::strftime("%Y-%m-%d %H:%M",localtime $doc->{timestamp});
 };
 
+
 if($print || $fetch){print STDERR ":: $date2 ::\n"};
+
+# Bitcoin exchange rate...
+my $tmp="/store/bitcoin-daily.json";
+if ($fetch){
+	system("fetch -o $tmp http://bitcoincharts.com/t/weighted_prices.json");
+}
+if (-f $tmp){
+	my $json;
+	open(my $file,"<",$tmp);
+	$json=join("",<$file>);
+	close($file);
+	my $doc = decode_json($json);
+	if(!defined $doc->{timestamp}){
+		warn "Bitcoin json broken\n";
+	}else{
+		my $base="EUR";
+		$KURS{BTC}=$KURS{$base} / $doc->{$base}{"24h"};
+		$NAME{BTC}="Bitcoin (24h reference via $base)";
+	};
+	use POSIX qw(strftime);
+	$date3=POSIX::strftime("%Y-%m-%d %H:%M",localtime $doc->{timestamp});
+};
+
+if($print || $fetch){print STDERR ":: $date3 ::\n"};
+
+# Linden Dollar exchange rate...
+my $tmp="/store/linden-daily.json";
+my $base="EUR";
+if ($fetch){
+	system("fetch -o $tmp 'http://api.virwox.com/api/json.php?method=getMarketDepth&symbols[0]=$base/SLL&buyDepth=1&sellDepth=1&id=1'");
+}
+if (-f $tmp){
+	use POSIX qw(strftime);
+	$date4=POSIX::strftime("%Y-%m-%d %H:%M",localtime( (stat($tmp))[9]));
+	my $json;
+	open(my $file,"<",$tmp);
+	$json=join("",<$file>);
+	close($file);
+	my $doc = decode_json($json);
+	if($doc->{result}[0]{errorCode} ne "OK"){
+		warn "Linden json broken\n";
+	}else{
+		my $v=($doc->{result}[0]{buy}[0]{price}+
+			   $doc->{result}[0]{sell}[0]{price}) / 
+			   (2);
+		$KURS{SLL}=$v * $KURS{$base};
+		$NAME{SLL}="Linden Dollar ($date4)";
+	};
+};
+
+if($print || $fetch){print STDERR ":: $date3 ::\n"};
 exit if ($silent);
 
 
@@ -225,8 +321,8 @@ if ($counter) {
 		print "<currency> to list rates to the Euro\n";
 		print "<currency>/<currency> to print conversion rate\n";
 		print "<value> <currency>/<currency> to convert a value\n";
-		print "Data obtained from the ECB on $date\n";
-		print "additional Data from Currencybot on $date2\n";
+		print "Data obtained from the ECB on $date, additional data from\n";
+		print "Currencybot on $date2 and bitcoincharts on $date3\n";
 		exit(0);
 	};
 

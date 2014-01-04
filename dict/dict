@@ -7,6 +7,10 @@ use Encode qw(decode);
 use encoding ':locale';
 use warnings;
 use strict;
+use FindBin;
+use lib "$FindBin::Bin/../GET/";
+use lib "/home/sec/Project/Scripts/GET/";
+use GET;
 
 my %uml= (
 	A => "Ä",
@@ -29,6 +33,12 @@ GetOptions ("fr"      => \$fr,
 		    "lines=n" => \$maxline,
 		    "verbose" => \$verbose);
 
+GET::config (
+	min_cache => 3000,
+	disable_cachedb => 1,
+	verbose => $verbose,
+);
+
 my $lang='ende';
 $lang='frde' if ($fr);
 
@@ -37,50 +47,32 @@ $maxline=10 if $counter;
 my $src="@ARGV";
 $src =~ y/a-zA-Z_-//cd;
 
-open (F,"-|:encoding(utf8)","fetch -o - http://dict.leo.org/\?lp=${lang}\\&relink=off\\&sectHdr=off\\&search=$src 2>/dev/null");
-#open (F,"-|:encoding(utf8)","cat _test");
-while(<F>){
-	last if /method="POST" name="WORDS"/;
-};
+my $body=GET::get_url("http://dict.leo.org/dictQuery/m-vocab/${lang}/de.html?searchLoc=0&lp=${lang}&lang=de&search=${src}&resultOrder=basic");
+
+#my $body=`cat _test`;
+
+$_=$body;
 $_="" if !defined $_; # quick hack if no hits.
-s/.* id="results"//;
 
-#remove single-cell internal tables. *sigh* 02/2012
-s{<table[^>]*>
-<tbody[^>]*>
-<tr[^>]*>
-<td[^>]*>
-([^>]*)
-</td>
-</tr>
-</tbody>
-</table>
-}{$1}gix;
+# Cut out relevant part
+s/.*<div itemprop="breadcrumb"//s;
+s/Weitere Aktionen.*//s;
 
-# Ende des relevanten:
-s/<\/table>.*//i;
-s!Informationen aus dem Umfeld der Suche.*!!;
-	
 s/\n/ /g;
 s/^.*?(<tr>)/$1/i;
 s{</t[dhr]>}{}gi;
 
-if(m!ein Service von!){
-	s{<a href="[^"]*"(?: [^>]+)?>(.*?)</a>}{$1}gi;
-	s{\*\) ein Service von \S+}{}gi;
-	s{</br>}{}gi;
-};
+s{<t(head|body)(?: [^>]*)?>}{}gi;
+s{</t(head|body)>}{}gi;
+s{<colgroup>.*?</colgroup>}{}gi;
 
 s{<(/?)strong>}{<${1}b>}gi;
 s{</?b>}{\002}gi if($counter);
 s{</?b>}{}gi;
 
-s{</?font[^>]*>}{}gi; # stoopid new font size=1 feature.
 s!&(.)uml;!$uml{$1}!g;
 
-s{<ul><li>(.*?)</li></ul>}{$1}gi;
-
-s{<A HREF="(?:ende|frde)[^>]*>(.*?)</A>}{$1}ig;
+s{<h2>(.*?)</h2>}{$1}gi;
 
 # Umstellung 05/2001
 s{&nbsp;}{ }g;
@@ -88,15 +80,9 @@ s{(?:&#160;)+}{ }g;
 
 s{<i(?: class="\w+")?>\s*([^<]+)</i>}{/$1/}gi;
 s{<sup>\s*([^<]+)</sup>}{[$1]}gi;
-s{<small(?: class="\w+")?>\s*([^<]+)</small>}{$1}gi;
+s{\s*<small(?: class="\w+")?>\s*([^<]+)</small>}{ $1}gi;
 s{<span class="\w+">\s*([^<]+)</span>}{$1}gi;
-s{<small>\s*([^<]+)</small>}{$1}gi; # Nested <small>s - how stupid.
-
-# Additions 02/2012 - remove some useless tags
-s{<input[^>]*>}{}gi;
-s{<span [^>]+>\s*</span>}{}gi;
-s{<a href[^>]+>\s*</a>}{}gi;
-
+s{<span class="sp [^"]*"[^>]*>\s*</span>}{ }gi;
 
 ### Parse the table...
 my ($l,$cnt)=(0,0);
@@ -105,12 +91,12 @@ my @ar; # Result table
 while ($_){
 	if (s/^<tr(?:\s[^>]*)?>\s*//i){
 		$cnt=0;$l++;
+	}elsif (s/<\/table>.*?<table>//si){
+		#
 	} elsif(s/^<t[dh](?:\s[^>]*)?>\s*(.*?)\s*(<t[hdr][ >]|$)/$2/i){
 		my $q=$1;
 #		$q =~ s/<[^>]+>//g if ($tag);
 		$ar[$l][$cnt++]=$q;
-	}elsif (s/<\/table>.*?<table>//i){
-		#
 	}else{
 		print "End: $_";
 		last;
@@ -125,23 +111,12 @@ if($l<2){
 #use Data::Dumper; print Dumper \@ar;
 
 sub mystrprint;
-my $weitere=0;
 my $line=0;
-for $a (3..$l){
-	next if $ar[$a][1] eq "";
-
-	next if  $ar[$a][1] eq "Unmittelbare Treffer";
-	next if  $ar[$a][1] eq "Keine Grundformen ableitbar";
-	$weitere=1 if ($ar[$a][1] eq "Weitere Treffer");
-
-	$ar[$a][3]="" if !defined $ar[$a][3];
-
-	if(!$counter && $ar[$a][3] eq ""){
-		print "\n";
-	};
+for $a (1..$l){
+	next if($ar[$a][0] eq ""  && $#{$ar[$a]} < 7 );
 
 	if(!$verbose){
-		if(($counter||$weitere) && $line>$maxline){
+		if(($counter) && $line>$maxline){
 			print "- trunctated\n";
 			exit;
 		};
@@ -150,11 +125,18 @@ for $a (3..$l){
 			exit;
 		};
 	};
-#	printf "%-30s %-30s\n",$ar[$a][1],$ar[$a][3];
-	print 
-		mystrprint (30,$ar[$a][1]),
-		mystrprint (30,$ar[$a][3]),
-		"\n";
+	if ($ar[$a][0] ne ""){ # Header
+		if(!$counter){
+			print "\n";
+			$line++;
+		};
+		print mystrprint (30,$ar[$a][0]),"\n";
+	}else{
+		print 
+			mystrprint (30,$ar[$a][4]),
+			mystrprint (30,$ar[$a][7]),
+			"\n";
+	};
 	$line++;
 	if($counter){
 		sleep (1) if(($line>4) && ($line%2));
@@ -180,4 +162,3 @@ sub mystrprint {
 	return $out;
 };
 
-	
