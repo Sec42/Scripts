@@ -1,0 +1,45 @@
+#!/usr/bin/perl
+
+# hb - Html Parser
+# rudimentary version only extracts links.
+
+use strict;
+#use Data::Dumper;
+
+use HTML::TreeBuilder;
+
+my $base="";
+
+if($ARGV[0] eq "-b"){
+	shift;
+	$base=shift;
+};
+
+my $file=shift;
+
+if ( ! -f $file ) {
+	die "No such file: $file\n";
+};
+
+
+my ($files)=1;
+
+my $tree=HTML::TreeBuilder->new;
+$tree->parse_file($file);
+$tree->elementify();
+
+for( $tree->look_down( _tag => "a")){
+	my $href=$_->attr("href");
+
+	next if($files && $href=~m!/$!);
+	next if($files && $href=~m!^\?!);
+
+	if($href=~m!^/!){
+		; # add protocol?
+	}else{
+		$href=$base.$href;
+	};
+
+	print $href,"\n";
+};
+
