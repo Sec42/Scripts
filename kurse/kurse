@@ -212,7 +212,7 @@ if($print || $fetch){print STDERR ":: $date2 ::\n"};
 # Bitcoin exchange rate...
 my $tmp="/store/bitcoin-daily.json";
 if ($fetch){
-	system("fetch -o $tmp http://bitcoincharts.com/t/weighted_prices.json");
+	system("fetch -o $tmp http://api.bitcoincharts.com/v1/weighted_prices.json");
 }
 if (-f $tmp){
 	my $json;
