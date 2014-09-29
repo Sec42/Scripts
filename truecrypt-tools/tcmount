@@ -1,0 +1,36 @@
+#!/bin/sh
+
+vol=$1
+
+# Defaults
+[ -z "$tc" ] && tc=~/.truecrypt
+[ -z "$mtp" ] && mtp=~/TC
+[ -z "$uid" ] && uid=${SUDO_UID}
+[ -z "$uid" ] && uid=`id -u`
+[ -z "$gid" ] && gid=${SUDO_UID}
+[ -z "$gid" ] && gid=`id -g`
+[ -z "$umask" ] && umask=077
+[ -z "$lodev" ] && lodev=`losetup -f`
+[ "$opts" = "ntfs" ] && opts="uid=$uid,gid=$gid,umask=$umask"
+
+
+#echo "Mounting $tc/$vol.tc to $mtp/$vol ..."
+if mount |grep -q "/dev/mapper/$vol " ; then
+	echo "Volume $vol is already mounted" >&2
+	exit 1
+fi
+
+losetup $lodev ~/.truecrypt/${vol}.tc  || {
+	echo "losetup failed" >&2
+	exit 1
+}
+tcplay -m ${vol} -d $lodev || {
+	echo "tcplay failed" >&2
+	exit 1
+}
+[ ! -d $mtp/$vol ] && mmkdir $mtp/$vol
+[ ! -z "$opts" ] && opts="-o $opts"
+mount $opts /dev/mapper/$vol $mtp/$vol || {
+	echo "mount failed" >&2
+	exit 1
+}

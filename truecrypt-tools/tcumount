@@ -1,0 +1,22 @@
+#!/bin/sh
+
+vol=$1
+
+# Defaults
+[ -z "$tc" ] && tc=~/.truecrypt
+[ -z "$mtp" ] && mtp=~/TC
+
+umount $mtp/$vol || {
+		echo "umount returned error ">&2
+}
+
+tcplay --unmap=$vol || {
+		echo "unmap returned error ">&2
+}
+
+for dev in `losetup -j $tc/$vol.tc |sed 's/:.*//'` ; do 
+	losetup -d $dev || {
+		echo "losetup -d returned error ">&2
+	}
+done
+
