@@ -1,0 +1,10 @@
+[alias] 
+        st = status 
+        com = commit 
+        lg = log --oneline --all --graph --decorate=short 
+        up = "!git remote update -p; git merge --ff-only @{u}" 
+[push] 
+        default = simple 
+[pull] 
+        rebase = preserve 
+
