@@ -1,0 +1,178 @@
+#!/usr/bin/perl
+
+my (@args)=@ARGV;
+
+my $DEBUG=1;
+my $BOUND="lethaveanicedaywithgpg";
+my $fallback='sec@42.org';
+my $sendmail='/usr/sbin/ssmtp';
+
+use File::Temp qw/ tempfile tempdir /;
+use FileHandle;
+use IPC::Open3;
+use IO::Handle;
+use strict;
+use warnings;
+
+$SIG{PIPE}='IGNORE';
+
+my ($fh, $filename);
+
+sub errmail{
+	print "start error mail\n";
+	open(ERRMAIL, "|$sendmail -oi -t")||die "Couldn't exec ssmtp: $!";
+	print ERRMAIL "From: Error <$fallback>\n";
+	print ERRMAIL "To: $fallback\n";
+	print ERRMAIL "Subject: Encmailer failed horribly\n";
+	print ERRMAIL "\n";
+	print ERRMAIL "Check $filename for details.\n";
+	print ERRMAIL "\n";
+	print ERRMAIL "Lets see if I can include it here:\n";
+	print ERRMAIL "\n";
+	open(F,"<",$filename); while(<F>){ print ERRMAIL $_ }; close(F);
+	close(ERRMAIL);
+	print "end error mail\n";
+};
+
+my %uid; # All valid uids
+do { # Read keys 
+    my @ary;
+    open(F,"-|",qw(gpg --list-keys --fixed-list-mode --with-colons))||die;
+    while(<F>){
+	@ary=split(/:/,$_);
+	if ($ary[0] eq "uid"){
+	    next unless ($ary[1] =~ /[-fu]/); # Only valid keys
+	    if($ary[9] =~ /<([\w.]+@[.\w]+)>/){
+		$uid{lc $1}++;
+	    }
+	}
+    }
+};
+
+($fh, $filename) = tempfile( "encmail.XXXXXXXXX", DIR => "/tmp/");
+
+print $fh "Arguments: ",join(" ",@args)," (should be \"-oi -t\" or similar)\n";
+
+my $mailpid = open3(*MAIL, *MAILERR,0, $sendmail,@args);
+$mailpid || die "Couldn't exec $sendmail: $!";
+
+my $to=undef;
+my $cc="";
+my $ct="text/plain";
+my $cte;
+while(<STDIN>){
+	last if(/^$/);
+
+	if(/^Content-Type:\s+(.*)/){
+		$ct=$1;
+		next;
+	};
+	if(/^Content-Transfer-Encoding:\s+(.*)/){
+		$cte=$1;
+		next;
+	};
+	/^MIME-Version:\s+/ && next;
+
+	if(!$to && /^To: (.*)/){
+		$to=$1;
+	};
+
+	if(!$cc && /^Cc: (.*)/){
+		$cc=$1;
+	};
+
+	print $fh $_;
+	print MAIL $_;
+};
+
+my @addr=map {/([\w.]+\@[\w.]+)/;lc $1} split(/,/,$to.",".$cc);
+my @goodaddr=grep {$uid{$_}} @addr;
+my @badaddr= grep {!$uid{$_}} @addr;
+
+print $fh "Good-ADDRS: ",join("|",@goodaddr),"\n";
+print $fh "Bad-ADDRS: ",join("|",@badaddr),"\n";
+#print $fh "Cte: $cte\n";
+print $fh "\n";
+
+if(!@goodaddr){
+    push @goodaddr,$fallback;
+    print MAIL "X-Error: no valid recipients. Used Fallback.\n";
+};
+
+if(@badaddr){
+    print MAIL "X-not-encrypted-to: ",join(",",@badaddr),"\n";
+}
+
+my $pid = open3(*Writer,*Reader,0, qw(gpg --yes --batch --always-trust -e -a),
+	map{"-r $_"} @goodaddr);
+$pid || die "Couldn't exec gpg: $!";
+
+print Writer "Content-Type: $ct\n";
+print Writer "Content-Transfer-Encoding: $cte\n" if (defined $cte);
+print Writer "\n";
+
+while(<STDIN>){
+	print $fh $_;
+	print Writer $_;
+};
+close(Writer);
+
+my $body;
+do {
+        local $/=undef;
+        $body=<Reader>;
+};
+close(Reader);
+
+waitpid($pid,0);
+
+my $pgperr=$?;
+print $fh "PGP-ERR: $pgperr\n";
+print $fh "\n\n$body\n";
+
+if($pgperr){
+	print MAIL "\n";
+	print MAIL "Something broke. Sorry.\n";
+	print MAIL "Please contact your friendly sysadmin.\n";
+	close(MAIL);
+	$fh->flush;
+	print "preerrmail\n";
+	errmail();
+	print "posterrmail\n";
+	exit(1);
+};
+
+print MAIL "MIME-Version: 1.0
+Content-Type: multipart/encrypted; protocol=\"application/pgp-encrypted\"; boundary=\"$BOUND\"
+
+--$BOUND
+Content-Type: application/pgp-encrypted
+Content-Disposition: attachment
+
+Version: 1
+
+--$BOUND
+Content-Type: application/octet-stream
+Content-Disposition: inline; filename=\"msg.asc\"
+";
+
+print MAIL "\n";
+print MAIL $body;
+print MAIL "\n--${BOUND}--";
+close(MAIL);
+
+my $ssmtpbody;
+do {
+        local $/=undef;
+        $ssmtpbody=<MAILERR>;
+};
+close(MAILERR);
+waitpid($mailpid,0);
+my $mailerr=$?;
+print $fh "MAIL-ERR: $mailerr\n";
+print $fh $ssmtpbody;
+close($fh);
+if($mailerr!=0){
+	errmail();
+	exit(1);
+};

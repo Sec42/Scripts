@@ -1,0 +1,2 @@
+A small wrapper to put in place in stead of 'sendmail' to 
+gpg encrypt all outgoing e-mail.
