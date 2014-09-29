@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# This script creates a wrapper around gnome-keyring-daemon so that the "ssh"
+# component which impersonates ssh-agent doesn't get activated.
+
+# gnome-keyring-daemon's ssh impersonation is incomplete
+# - doesn't allow key removal
+# - doesn't support "-c" (mus confirm before-use)
+# - pops up a gui window instead of asking for the password from inside ssh
+
+file=/usr/bin/gnome-keyring-daemon
+
+if [ "`dpkg-divert --truename $file`" = "$file" ] ; then
+	echo ''
+    echo '### Adding keyring-wrapper'
+	echo '' 
+	dpkg-divert --add --rename --divert $file.real $file
+
+	echo '#!/bin/sh'>$file
+	echo 'exec '$file.real' --components=pkcs11,secrets,gpg "$@"' >>$file
+	chmod a+x $file
+else
+	echo ''
+    echo '### Removing existing keyring-wrapper'
+	echo '' 
+	rm $file
+	dpkg-divert --remove --rename $file
+fi
+
+#package: gnome-keyring
+
