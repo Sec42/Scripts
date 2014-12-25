@@ -4,7 +4,8 @@
 # (c) by Stefan `Sec` Zehl - (first version from < 2001 )
 
 use Encode qw(decode);
-use encoding ':locale';
+use utf8;
+use open ':locale';
 use warnings;
 use strict;
 use FindBin;
@@ -49,13 +50,12 @@ $src =~ y/a-zA-Z_-//cd;
 
 my $body=GET::get_url("http://dict.leo.org/dictQuery/m-vocab/${lang}/de.html?searchLoc=0&lp=${lang}&lang=de&search=${src}&resultOrder=basic");
 
-#my $body=`cat _test`;
-
 $_=$body;
 $_="" if !defined $_; # quick hack if no hits.
 
 # Cut out relevant part
-s/.*<div itemprop="breadcrumb"//s;
+s/.*<div itemprop="breadcrumb"//s; # 2014-04 - 2014-12
+s/.*<header itemprop="breadcrumb"//s; # starting at 2014-12
 s/Weitere Aktionen.*//s;
 
 s/\n/ /g;
@@ -65,8 +65,14 @@ s{</t[dhr]>}{}gi;
 s{<t(head|body)(?: [^>]*)?>}{}gi;
 s{</t(head|body)>}{}gi;
 s{<colgroup>.*?</colgroup>}{}gi;
+s{<header(?: [^>]*)?>.*?</header>}{}gi;
+s{<footer(?: [^>]*)?>.*?</footer>}{}gi;
+s{</table>\s*(<[^>]+>\s*)+?<table(?: [^>]*)?>}{}gi;
+s{(<[^>]+>\s*)+$}{};
 
 s{<(/?)strong>}{<${1}b>}gi;
+s{<h1 class=[^>]+>(.*?)</h1>}{<b>$1</b>}gi; # Section headers (2014-04)
+s{<h2 class=[^>]+>(.*?)</h2>}{<b>$1</b>}gi; # Section headers (2014-12)
 s{</?b>}{\002}gi if($counter);
 s{</?b>}{}gi;
 
@@ -74,7 +80,6 @@ s!&(.)uml;!$uml{$1}!g;
 
 s{<h2>(.*?)</h2>}{$1}gi;
 
-# Umstellung 05/2001
 s{&nbsp;}{ }g;
 s{(?:&#160;)+}{ }g;
 
@@ -96,6 +101,7 @@ while ($_){
 	} elsif(s/^<t[dh](?:\s[^>]*)?>\s*(.*?)\s*(<t[hdr][ >]|$)/$2/i){
 		my $q=$1;
 #		$q =~ s/<[^>]+>//g if ($tag);
+		$q =~ s/\|.*//; # 2014-14: remove additional info in "Verben"
 		$ar[$l][$cnt++]=$q;
 	}else{
 		print "End: $_";
@@ -130,11 +136,11 @@ for $a (1..$l){
 			print "\n";
 			$line++;
 		};
-		print mystrprint (30,$ar[$a][0]),"\n";
+		print mystrprint (33,$ar[$a][0]),"\n";
 	}else{
 		print 
-			mystrprint (30,$ar[$a][4]),
-			mystrprint (30,$ar[$a][7]),
+			mystrprint (33,$ar[$a][4]),
+			mystrprint (33,$ar[$a][7]),
 			"\n";
 	};
 	$line++;
