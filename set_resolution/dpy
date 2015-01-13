@@ -1,0 +1,74 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+use Getopt::Std;
+
+my %opts;
+getopts('vlrm1', \%opts);
+my $v=$opts{v} // 0;
+my $l=$opts{l} // 0;
+my $r=$opts{r} // 0; # Default
+my $m=$opts{m} // 0;
+my $one=$opts{1} // 0;
+
+my $int="LVDS1";
+my @ext=qw(VGA1 HDMI1);
+my %ext=map {$_ => 1} @ext;
+
+my $prog="/usr/bin/xrandr";
+#my $connector="VGA1";
+my $connector="HDMI1";
+
+open(my $in,"-|",$prog) || die;
+
+sub run  {
+	my @cmd=@_;
+	unshift @cmd, $prog,qw(--output);
+	if ($v){
+		print STDERR "would run: @cmd\n";
+	}else{
+		system ("@cmd");
+	};
+};
+
+my @conn=();
+while (<$in>){
+	if (/(.*?) connected/){
+		push @conn, $1;
+	};
+};
+
+my @use=();
+for my $d (@conn){
+	if ($d eq $int){
+		next;
+	};
+	if (!$ext{$d}){
+		print STDERR "Ignoring unknown display $d\n";
+		next;
+	};
+	push @use,$d;
+};
+
+if ($#use == -1 or $one){
+	print "No external display.\n";
+	for my $d (@ext){
+		run($d,"--off");
+	};
+	run($int,"--auto","--primary");
+}elsif($#use ==0){
+	if ($l){
+		run($use[0],"--auto","--primary");
+		run ($int,qw(--auto --right-of),$use[0]);
+	}elsif($m){
+		run($use[0],"--auto","--primary");
+		run ($int,qw(--same-as),$use[0]);
+	}else{
+		run($int,"--auto","--primary");
+		run ($use[0],qw(--auto --right-of),$int);
+	};
+}else{
+	print STDERR "More than one extra display?";
+	print STDERR "Displays: ",join(" ",@use);
+};
