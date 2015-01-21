@@ -1,0 +1,2 @@
+xfconf-query -c xfwm4 -p /general/click_to_focus -s false
+xfconf-query -c xfwm4 -p /general/raise_on_focus -s false
