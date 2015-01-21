@@ -1,0 +1,14 @@
+#!/bin/sh
+
+file=/etc/apt/apt.conf.d/42suggestfix
+
+if [ -f $file ] ; then
+	echo "Suggest-fix already installed" >&2
+	exit 1
+fi
+
+cat <<EOM > $file
+// Recommends are as of now still abused in many packages
+APT::Install-Recommends "0";
+APT::Install-Suggests "0";
+EOM
