@@ -5,7 +5,7 @@
 
 # gnome-keyring-daemon's ssh impersonation is incomplete
 # - doesn't allow key removal
-# - doesn't support "-c" (mus confirm before-use)
+# - doesn't support "-c" (must confirm before-use)
 # - pops up a gui window instead of asking for the password from inside ssh
 
 file=/usr/bin/gnome-keyring-daemon
@@ -17,7 +17,7 @@ if [ "`dpkg-divert --truename $file`" = "$file" ] ; then
 	dpkg-divert --add --rename --divert $file.real $file
 
 	echo '#!/bin/sh'>$file
-	echo 'exec '$file.real' --components=pkcs11,secrets,gpg "$@"' >>$file
+	echo 'exec '$file.real' --components=pkcs11,secrets,gpg --start' >>$file
 	chmod a+x $file
 else
 	echo ''
