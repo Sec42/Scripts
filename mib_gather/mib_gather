@@ -1,0 +1,31 @@
+#!/usr/bin/perl
+
+# Simple perl script to gather and properly rename a bunch of mib files
+# so that snmpwalk can work with them
+
+use File::Find;
+find({ wanted => \&process, no_chdir => 1 }, @ARGV[0]);
+
+sub process { 
+	my $name;
+	next unless -f $_;
+	next unless /\.mib$/;
+	open (my $f,"<",$_)||die "Can't open mib: $!";
+	my $file=$File::Find::name;
+	while (<$f>){
+		s/-- .*//; # remove comments
+		s/^\s+//; # remove whitespace
+		next if /^$/;
+		if (/^(\S+)\s+DEFINITIONS\s*::=\s*BEGIN/){
+			$name=$1;
+			last;
+		};
+		print "File: $file unknown line: $_\n";
+	};
+	if(defined $name){
+		link $file,$name.".mib" || die;
+	}else{
+		warn "Could not parse $file\n";
+	};
+};
+
