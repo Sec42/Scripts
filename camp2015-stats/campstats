@@ -27,6 +27,7 @@ my $doc = XML::LibXML::XPathContext->new($rdoc);
 $doc->registerNs('x', $rdoc->documentElement()->namespaceURI());
 
 my %fun;
+my $prev=0;
 
 foreach my $c ( $doc->findnodes('//*/x:g[contains(@class,"legend ")]') ){
 	my $id=$c->findvalue('@id');
@@ -38,6 +39,8 @@ foreach my $c ( $doc->findnodes('//*/x:g[contains(@class,"legend ")]') ){
 		print "\t",$d,"\n" if (VERBOSE);
 		$fun{$title}=$d->nodeValue;
 	}
+	$fun{$title}-=$prev;
+	$prev+=$fun{$title};
 }
 
 my $sum=0;
@@ -46,8 +49,8 @@ for (sort {$fun{$b} <=> $fun{$a}} keys %fun){
 	$sum+=$fun{$_};
 }
 print "\n";
-printf "%s%5.1f%%\n","Profitability:", $sum/950000 *100 /10; 
-		# XXX: there is an off-by 10 relative to the svg picture
+printf "%-11s%9d\n","Total:", $sum;
+printf "%-14s%5.1f%%\n","Profitability:", $sum/950000 *100; 
 print "\n";
 	
 for (sort {$fun{$b} <=> $fun{$a}} keys %fun){
