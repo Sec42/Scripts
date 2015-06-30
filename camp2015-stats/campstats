@@ -13,8 +13,8 @@ if (defined $ARGV[0]){
 	$rdoc = $parser->parse_file( shift );
 }else{
 	$rdoc = $parser->load_xml(string => get("https://tickets.events.ccc.de/media/chart_single.svg"));
-};
-
+ 	# or .../chart_avg.svg 
+}
 
 # XXX: XPath V1 is broken (by specification) with regards to
 # empty namespace prefixes with an non-empty namespace URI.
@@ -32,24 +32,25 @@ foreach my $c ( $doc->findnodes('//*/x:g[contains(@class,"legend ")]') ){
 	my $id=$c->findvalue('@id');
 	my $title= $c->findvalue('*/text()');
 	$id=~s/activate-//;
-	$title=~s/Merchandi.M/M/;
+	$title=~s/Merchandi.M/M/; # XXX: fix broken "Merchandise" label
 	print "$title:\n" if (VERBOSE);
 	foreach my $d ( $doc->findnodes('//*/x:g[contains(@class,"'.$id.'")]/x:g/x:desc[@class="value"]/text()') ){
 		print "\t",$d,"\n" if (VERBOSE);
 		$fun{$title}=$d->nodeValue;
-	};
-
+	}
 }
 
 my $sum=0;
 for (sort {$fun{$b} <=> $fun{$a}} keys %fun){
 	printf "%-12s%8d\n",$_.":",$fun{$_};
 	$sum+=$fun{$_};
-};
-
+}
+print "\n";
+printf "%s%5.1f%%\n","Profitability:", $sum/950000 *100 /10; 
+		# XXX: there is an off-by 10 relative to the svg picture
 print "\n";
 	
 for (sort {$fun{$b} <=> $fun{$a}} keys %fun){
-	printf "%-12s%6.2f%%\n",$_.":",$fun{$_}/$sum*100;
-};
+	printf "%-12s%5.1f%%\n",$_.":",$fun{$_}/$sum*100;
+}
 
