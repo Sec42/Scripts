@@ -1,4 +1,4 @@
-#!/usr/bin/perl -CSAL
+#!/usr/bin/env -S perl -CSAL
 
 # -subst:  do substitute some Waehrungskuerzel
 # -units:  Output suitable for units(1)
