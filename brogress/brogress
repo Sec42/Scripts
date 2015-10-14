@@ -2,6 +2,8 @@
 
 file=$1
 delay=1
+termcap=true
+tput ho 2>/dev/null || termcap=false
 
 size=$(wc -c $file|awk '{print $1}')
 
@@ -11,9 +13,14 @@ process(){
 	pid=$3
 	fd=$4
 
+    case $off in 
+		0t) off=${off#0t};;
+		0x) off=$(echo "16i ${off#0x} p"|tr a-f A-F|dc);;
+	esac
+
 	pct=$(echo "1k $off 100 * $size / p"|dc)
 	echo -n $(printf "%15s: %6s %s$el" "$cmd($pid)" "$pct%" "($off)")
-	tput ce
+	$termcap && tput ce || tput clr_eol
 	echo
 };
 
@@ -21,25 +28,25 @@ end(){
 	echo
 	echo
 	echo -n "Abort!"
-	tput ce ve
+	$termcap && tput ce ve || (tput clr_eol ;tput cnorm)
 	echo
 	exit
 }
 
 trap end 2
 
-tput cl vi
+$termcap && tput cl vi || (tput clear ; tput civis)
 echo "Progress for file: $file ($size)"
 
 while : ; do
-  tput ho
+  $termcap && tput ho || tput home
   echo
   lsof -o -F co $file 2>/dev/null | while read line ; do
     case $line in 
 		c*) cmd=${line#c};;
 		p*) pid=${line#p};;
 		f*) fd=${line#f};;
-		o*) off=${line#o0t}
+		o*) off=${line#o}
 			process "$off" "$cmd" "$pid" "$fd"
 			;;
 		*) echo "Unknown $line";;
