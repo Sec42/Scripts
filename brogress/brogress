@@ -14,13 +14,13 @@ process(){
 	fd=$4
 
     case $off in 
-		0t) off=${off#0t};;
-		0x) off=$(echo "16i ${off#0x} p"|tr a-f A-F|dc);;
+		0t*) off=${off#0t};;
+		0x*) off=$(echo "16i ${off#0x} p"|tr a-f A-F|dc);;
 	esac
 
 	pct=$(echo "1k $off 100 * $size / p"|dc)
 	echo -n $(printf "%15s: %6s %s$el" "$cmd($pid)" "$pct%" "($off)")
-	$termcap && tput ce || tput clr_eol
+	$termcap && tput ce || tput el
 	echo
 };
 
@@ -28,7 +28,7 @@ end(){
 	echo
 	echo
 	echo -n "Abort!"
-	$termcap && tput ce ve || (tput clr_eol ;tput cnorm)
+	$termcap && tput ce ve || (tput el ;tput cnorm)
 	echo
 	exit
 }
@@ -52,5 +52,6 @@ while : ; do
 		*) echo "Unknown $line";;
 	esac
   done
+  $termcap && tput cd || tput ed
   sleep $delay
 done
