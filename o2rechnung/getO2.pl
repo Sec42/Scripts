@@ -1,4 +1,4 @@
-#!/usr/bin/perl
+#!/usr/bin/env perl
 
 # getO2.pl - Script to fetch your bill (PDF) and traffic.CSV for
 # O2 (germany) customers.
