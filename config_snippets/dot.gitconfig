@@ -7,4 +7,5 @@
         default = simple 
 [pull] 
         rebase = preserve 
-
+[rebase]
+        autostash = true
