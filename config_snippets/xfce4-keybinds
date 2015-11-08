@@ -8,6 +8,7 @@ done << EOF
 <Shift>Print          xfce4-screenshooter -f
 <Super>d              /home/sec/bin/dpy
 <Super>r              dmenu_run -i -l 10 -fn 9x15
-<Super>x              xterm -fn 9x15
+<Super>x              xterm
+<Super>l              xflock4
 Print                 true
 EOF
