@@ -1,0 +1,26 @@
+XTerm*titeInhibit:              true
+XTerm*ttyModes: erase^h
+
+XTerm*VT100*color7: white
+XTerm*VT100*colorULMode: on
+XTerm*VT100*underLine: off
+XTerm*VT100*colorUL: blue
+XTerm*toolBar: false
+
+!default is blue2 (#0000EE)
+XTerm*VT100*color4: DodgerBlue2
+
+*customization: -color
+XTerm*background:  #ffffff
+XTerm*foreground:  #000000
+
+XTerm*VT100.translations: #override \
+        <Btn1Up>: select-end(PRIMARY, CLIPBOARD, CUT_BUFFER0)
+
+XTerm*charClass: 33:48,35:48,37-38:48,44-46:48,58:48,63-64:48,95:48,126:48
+
+! Icon for "Taskbar" 
+xterm*iconHint: /home/sec/.icons/sec-xterm
+
+XTerm*faceName: FreeMono
+XTerm*faceSize: 11
