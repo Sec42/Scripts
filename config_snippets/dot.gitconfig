@@ -2,7 +2,9 @@
         st = status 
         com = commit 
         lg = log --oneline --all --graph --decorate=short 
+        lge = log --all --graph --pretty=format:'%C(auto)%h%d %s %C(bold blue)<%aN>%Creset' --abbrev-commit
         up = "!git remote update -p; git merge --ff-only @{u}" 
+        repull = pull --no-rebase
 [push] 
         default = simple 
 [pull] 
