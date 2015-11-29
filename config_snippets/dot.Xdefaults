@@ -1,3 +1,13 @@
+!Old stuff
+Mwm*keyboardFocusPolicy: pointer
+spellcast*name: Sec
+
+! Xterm
+
+! remap a key:
+!XTerm*VT100.translations:    #override \n\
+!          <Key>SunCut:              string(0x0e) \n
+
 XTerm*titeInhibit:              true
 XTerm*ttyModes: erase^h
 
@@ -7,8 +17,10 @@ XTerm*VT100*underLine: off
 XTerm*VT100*colorUL: blue
 XTerm*toolBar: false
 
-!default is blue2 (#0000EE)
+!new Xorg default is blue2, old default was blue3
 XTerm*VT100*color4: DodgerBlue2
+!default is yellow
+XTerm*VT100*color11: goldenrod
 
 *customization: -color
 XTerm*background:  #ffffff
@@ -22,5 +34,6 @@ XTerm*charClass: 33:48,35:48,37-38:48,44-46:48,58:48,63-64:48,95:48,126:48
 ! Icon for "Taskbar" 
 xterm*iconHint: /home/sec/.icons/sec-xterm
 
+! Non-Bitmap font if needed: "xterm -fa FreeMono -fs 11 -g 80x49"
 XTerm*faceName: FreeMono
 XTerm*faceSize: 11
