@@ -1,6 +1,7 @@
 #!/bin/sh
 
 delay=1
+autodelay=3
 
 gfile(){
 #tfile=`mktemp`
@@ -48,6 +49,10 @@ if [ -z "$file" ] ; then
 	file=$(gfile)
 fi
 
+if [ X"$file" = X"-a" ] ; then
+	auto=$autodelay
+fi
+
 size=$(wc -c $file|awk '{print $1}')
 
 process(){
@@ -76,7 +81,22 @@ end(){
 	exit
 }
 
+alm(){
+	nfile=$(gfile)
+	if [ "${nfile}" != "${file}" ] ; then
+		file=$nfile
+		size=$(wc -c $file|awk '{print $1}')
+		$termcap && tput cl vi || (tput clear ; tput civis)
+		echo "Progress for file: ${file##*/} ($size)"
+	fi
+	[ ! -z "$auto" ] && (sleep $auto; kill -USR1 $pid 2>/dev/null ) &
+}
+
 trap end 2
+trap alm USR1
+
+pid=$$
+[ ! -z "$auto" ] && (kill -USR1 $pid) &
 
 $termcap && tput cl vi || (tput clear ; tput civis)
 echo "Progress for file: ${file##*/} ($size)"
