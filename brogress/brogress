@@ -1,9 +1,52 @@
 #!/bin/sh
 
-file=$1
 delay=1
+
+gfile(){
+#tfile=`mktemp`
+msize=0
+mname=none
+# Need to do it with tmpfile because of sh subshell stupidity
+lsof -s -F nfs / | \
+while read line ; do
+    case $line in
+		p*) pid=${line#p};;
+		f*) fd=${line#f};;
+		s*) size=${line#s};;
+		n*) name=${line#n}
+#			echo $pid $name $size / $mname $msize >&2
+			if [ "${fd}" = "txt" ] ; then
+				continue
+			fi
+			if [ "${name}" = "/" ] ; then
+				continue
+			fi
+			if [ "${name#/usr/lib}" != "${name}" ] ; then
+				continue
+			fi
+			if [ "${name#/lib}" != "${name}" ] ; then
+				continue
+			fi
+			if [ $size -gt $msize ] ; then
+				msize=$size
+				mname=$name
+			fi
+			size=0
+			name=undef
+			echo $mname
+			;;
+		*) echo "Unknown $line";;
+	esac
+done |tail -1
+}
+
+file=$1
 termcap=true
 tput ho 2>/dev/null || termcap=false
+
+if [ -z "$file" ] ; then
+	file=$(gfile)
+fi
 
 size=$(wc -c $file|awk '{print $1}')
 
