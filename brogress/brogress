@@ -13,7 +13,7 @@ process(){
 	pid=$3
 	fd=$4
 
-    case $off in 
+    case $off in
 		0t*) off=${off#0t};;
 		0x*) off=$(echo "16i ${off#0x} p"|tr a-f A-F|dc);;
 	esac
@@ -36,13 +36,13 @@ end(){
 trap end 2
 
 $termcap && tput cl vi || (tput clear ; tput civis)
-echo "Progress for file: $file ($size)"
+echo "Progress for file: ${file##*/} ($size)"
 
 while : ; do
   $termcap && tput ho || tput home
   echo
   lsof -o -F co $file 2>/dev/null | while read line ; do
-    case $line in 
+    case $line in
 		c*) cmd=${line#c};;
 		p*) pid=${line#p};;
 		f*) fd=${line#f};;
