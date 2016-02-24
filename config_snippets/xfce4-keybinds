@@ -5,10 +5,12 @@ while read key command ; do
 	echo Set: $key
 	xfconf-query -c xfce4-keyboard-shortcuts -p "$where/$key" -n -t string -s "$command"
 done << EOF
+Print                 true
 <Shift>Print          xfce4-screenshooter -f
 <Super>d              /home/sec/bin/dpy
 <Super>r              dmenu_run -i -l 10 -fn 9x15
 <Super>x              xterm
 <Super>l              xflock4
-Print                 true
+<Control><Alt>k       sh -c "xdotool search --class keepass2 windowmap %1 || keepass2"
+<Control><Alt>a       keepass2 --auto-type
 EOF
