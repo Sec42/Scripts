@@ -1,4 +1,4 @@
-#!/usr/bin/env perl -- -w
+#!/usr/local/bin/perl
 
 # Simple Content-Security-Policy violation logger
 
@@ -11,6 +11,7 @@
 # supports new "'unsafe-inline' 'unsafe-eval'"
 
 use strict;
+use warnings;
 use JSON;
 use Data::Dumper;
 
@@ -69,6 +70,7 @@ print "Content-type: text/plain\n\n";
 print "Thanks.\n";
 
 $Data::Dumper::Indent = 1;
+$Data::Dumper::Sortkeys = 1;
 domail("CSP report", Data::Dumper->Dump([$report],['report']) );
 
 exit(0);
