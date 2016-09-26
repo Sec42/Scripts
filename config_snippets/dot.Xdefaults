@@ -37,3 +37,6 @@ xterm*iconHint: /home/sec/.icons/sec-xterm
 ! Non-Bitmap font if needed: "xterm -fa FreeMono -fs 11 -g 80x49"
 XTerm*faceName: FreeMono
 XTerm*faceSize: 11
+
+! This is mainly for copy/paste from inside Virtualbox
+XTerm*selectToClipboard: true
