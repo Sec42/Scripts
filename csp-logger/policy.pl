@@ -33,7 +33,7 @@ while(<STDIN>){
 };
 
 my $report;
-if ($ENV{CONTENT_TYPE} eq "application/json" || $ENV{CONTENT_TYPE} eq "application/json; charset=UTF-8"){
+if ($ENV{CONTENT_TYPE} eq "application/json" || $ENV{CONTENT_TYPE} eq "application/json; charset=UTF-8" || $ENV{CONTENT_TYPE} eq "application/csp-report"){
 	eval {$report  = decode_json $req;}
 }elsif ($ENV{CONTENT_TYPE} eq "application/x-www-form-urlencoded"){
 	my ($key,$value);
