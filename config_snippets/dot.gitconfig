@@ -1,10 +1,16 @@
+[user]
+#        email = sec@42.org
+#        name = Stefan `Sec` Zehl
 [alias] 
         st = status 
+        sts = status --short --branch
         com = commit 
         lg = log --oneline --all --graph --decorate=short 
         lge = log --all --graph --pretty=format:'%C(auto)%h%d %s %C(bold blue)<%aN>%Creset' --abbrev-commit
         up = "!git remote update -p; git merge --ff-only @{u}" 
         repull = pull --no-rebase
+        it = "!git init && git commit -m “root” --allow-empty"
+        staash = stash --include-untracked
 [push] 
         default = simple 
 [pull] 
