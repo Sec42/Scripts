@@ -26,11 +26,13 @@ $|=1;
 
 use Getopt::Long;
 my $counter = 0;
+my $utfe = 0;
 my $verbose = 0;
 my $fr=0;
 my $maxline= 24;
 GetOptions ("fr"      => \$fr,
 		    "counter" => \$counter,
+		    "utfe"    => \$utfe,
 		    "lines=n" => \$maxline,
 		    "verbose" => \$verbose);
 
@@ -44,6 +46,7 @@ my $lang='ende';
 $lang='frde' if ($fr);
 
 $maxline=10 if $counter;
+$maxline=10 if $utfe;
 
 my $src="@ARGV";
 $src =~ y/a-zA-Z_-//cd;
