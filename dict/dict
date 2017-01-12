@@ -76,6 +76,9 @@ s{<h2 class=[^>]+>(.*?)</h2>}{<b>$1</b>}gi; # Section headers (2014-12)
 s{</?b>}{\002}gi if($counter);
 s{</?b>}{}gi;
 
+s{</?[mt]>}{}gi;
+s{</?sr>}{}gi;
+
 s!&(.)uml;!$uml{$1}!g;
 
 s{<h2>(.*?)</h2>}{$1}gi;
@@ -131,16 +134,16 @@ for $a (1..$l){
 			exit;
 		};
 	};
-	if ($ar[$a][0] ne ""){ # Header
+	if ($#{$ar[$a]} == 0){ # Header
 		if(!$counter){
-			print "\n";
+			print "\n" unless $line==0;
 			$line++;
 		};
 		print mystrprint (33,$ar[$a][0]),"\n";
 	}else{
 		print 
-			mystrprint (33,$ar[$a][4]),
-			mystrprint (33,$ar[$a][7]),
+			mystrprint (33,$ar[$a][0]),
+			mystrprint (33,$ar[$a][1]),
 			"\n";
 	};
 	$line++;
