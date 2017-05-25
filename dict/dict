@@ -81,19 +81,30 @@ s{</?b>}{}gi;
 
 s{</?[mt]>}{}gi;
 s{</?sr>}{}gi;
+s{</?mark>}{}gi; # 2017-03
+s{</?samp>}{}gi; # 2017-03
+s{</?small>}{}gi; # 2017-03
 
 s!&(.)uml;!$uml{$1}!g;
 
 s{<h2>(.*?)</h2>}{$1}gi;
+s{<span(?: title="[^"]+")?>(.*?)</span>}{$1}gi; # 2017-03
+s{<a href="[#&;\w/-]+">(.*?)</a>}{$1}gi; # 2017-03
+s{<a href="[^"]+"(?:\s+[\w-]+="[^"]+")*>(.*?)</a>}{$1}gi; # 2017-05
 
 s{&nbsp;}{ }g;
 s{(?:&#160;)+}{ }g;
 
-s{<i(?: class="\w+")?>\s*([^<]+)</i>}{/$1/}gi;
+
+s{<span title="\w+">\s*([^<]+)</span>}{$1}gi;
+s{<i( [^>]*)?>\s*</i>}{ }gi; #2017-05
 s{<sup>\s*([^<]+)</sup>}{[$1]}gi;
 s{\s*<small(?: class="\w+")?>\s*([^<]+)</small>}{ $1}gi;
-s{<span class="\w+">\s*([^<]+)</span>}{$1}gi;
+s{<span class="[\w-]+">\s*([^<]+)</span>}{$1}gi;
 s{<span class="sp [^"]*"[^>]*>\s*</span>}{ }gi;
+s{<span style="[^"]+">\s*</span>}{ }gi;
+s{<i(?: class="\w+")?>\s*([^<]+)</i>}{/$1/}gi;
+s{<i(?: class=[^>]+)?>\s*([^<]+)</i>}{/$1/}gi;
 
 ### Parse the table...
 my ($l,$cnt)=(0,0);
@@ -145,8 +156,8 @@ for $a (1..$l){
 		print mystrprint (33,$ar[$a][0]),"\n";
 	}else{
 		print 
-			mystrprint (33,$ar[$a][0]),
-			mystrprint (33,$ar[$a][1]),
+			mystrprint (33,$ar[$a][4]), # 2017-03 (before: 0/1)
+			mystrprint (33,$ar[$a][7]),
 			"\n";
 	};
 	$line++;
