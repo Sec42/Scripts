@@ -2,6 +2,7 @@
 
 delay=1
 autodelay=3
+tfile=`mktemp`
 
 gfile(){
 #tfile=`mktemp`
@@ -104,7 +105,8 @@ echo "Progress for file: ${file##*/} ($size)"
 while : ; do
   $termcap && tput ho || tput home
   echo
-  lsof -o -F co $file 2>/dev/null | while read line ; do
+  lsof -o -F co $file > $tfile 2>/dev/null
+  while read line ; do
     case $line in
 		c*) cmd=${line#c};;
 		p*) pid=${line#p};;
@@ -114,7 +116,7 @@ while : ; do
 			;;
 		*) echo "Unknown $line";;
 	esac
-  done
+  done <$tfile
   $termcap && tput cd || tput ed
   sleep $delay
 done
