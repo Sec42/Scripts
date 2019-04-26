@@ -4,6 +4,11 @@ delay=1
 autodelay=3
 tfile=`mktemp`
 
+if [ ! -x "$(which dc)" ] ; then
+  echo "required dc binary not found." >&2
+  exit 1
+fi
+
 gfile(){
 #tfile=`mktemp`
 msize=0
