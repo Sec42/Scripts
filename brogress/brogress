@@ -72,8 +72,31 @@ process(){
 		0x*) off=$(echo "16i ${off#0x} p"|tr a-f A-F|dc);;
 	esac
 
+	x=$(eval echo \$o_$pid)
+	if [ -z "$x" ] ; then
+	  eval o_$pid=$off
+	  sts=$pts
+	fi
+
+	odiff=$(echo $off $(eval echo \$o_$pid) - p | dc)
+	tdiff=$(echo $pts $sts - p |dc )
+	sfx="B"
+	if [ "$tdiff" -gt 0 ] ; then
+	   odiff="$(echo $odiff $tdiff / p |dc)"
+	   sfx="$sfx/s"
+	fi
+    if [ "$odiff" -gt 1000000 ] ; then
+       odiff=$(echo 2k $odiff 1024 / 1024 / p|dc)
+	   sfx="M$sfx"
+    else
+		if [ "$odiff" -gt 2000 ] ; then
+		   odiff=$(echo 2k $odiff 1024 / p|dc)
+		   sfx="k$sfx"
+		fi
+    fi
+
 	pct=$(echo "1k $off 100 * $size / p"|dc)
-	echo -n $(printf "%15s: %6s %s$el" "$cmd($pid)" "$pct%" "($off)")
+	echo -n $(printf "%15s: %6s %s %s $sfx$el" "$cmd($pid)" "$pct%" "($off)" "$odiff")
 	$termcap && tput ce || tput el
 	echo
 };
@@ -110,6 +133,7 @@ echo "Progress for file: ${file##*/} ($size)"
 while : ; do
   $termcap && tput ho || tput home
   echo
+  pts=$(date +%s)
   lsof -o -F co $file > $tfile 2>/dev/null
   while read line ; do
     case $line in
