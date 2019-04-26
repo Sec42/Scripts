@@ -106,7 +106,7 @@ process(){
 	fi
 
 	sfx="B"
-	if [ "$tdiff" -gt 0 ] ; then
+	if [ "$odiff" -gt 0 -a "$tdiff" -gt 0 ] ; then
 	   odiff="$(echo $odiff $tdiff / p |dc)"
 	   sfx="$sfx/s"
 	fi
