@@ -14,7 +14,7 @@ gfile(){
 msize=0
 mname=none
 # Need to do it with tmpfile because of sh subshell stupidity
-lsof -s -F nfs / | \
+lsof -s -F nfs / 2>/dev/null| \
 while read line ; do
     case $line in
 		p*) pid=${line#p};;
