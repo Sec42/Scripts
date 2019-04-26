@@ -143,14 +143,14 @@ alm(){
 		$termcap && tput cl vi || (tput clear ; tput civis)
 		echo "Progress for file: ${file##*/} ($size)"
 	fi
-	[ ! -z "$auto" ] && (sleep $auto; kill -USR1 $pid 2>/dev/null ) &
+	[ ! -z "$auto" ] && (sleep $auto; kill -USR1 $mypid 2>/dev/null ) &
 }
 
 trap end 2
 trap alm USR1
 
-pid=$$
-[ ! -z "$auto" ] && (kill -USR1 $pid) &
+mypid=$$
+[ ! -z "$auto" ] && (kill -USR1 $mypid) &
 
 $termcap && tput cl vi || (tput clear ; tput civis)
 echo "Progress for file: ${file##*/} ($size)"
