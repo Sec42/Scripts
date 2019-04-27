@@ -13,8 +13,9 @@ gfile(){
 #tfile=`mktemp`
 msize=0
 mname=none
+size=0
 # Need to do it with tmpfile because of sh subshell stupidity
-lsof -s -F nfs / 2>/dev/null| \
+lsof -s -F nfs 2>/dev/null| \
 while read line ; do
     case $line in
 		p*) pid=${line#p};;
@@ -32,6 +33,9 @@ while read line ; do
 				continue
 			fi
 			if [ "${name#/lib}" != "${name}" ] ; then
+				continue
+			fi
+			if [ "${name%.so}" != "${name}" ] ; then
 				continue
 			fi
 			if [ $size -gt $msize ] ; then
