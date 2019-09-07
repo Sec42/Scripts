@@ -1,0 +1,5 @@
+Simple commandline tool to show ip addresses of local machine (on linux)
+
+ipa [-6a] 
+     -6 for v6 
+     -a for both v4 and v6

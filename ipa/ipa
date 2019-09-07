@@ -1,0 +1,41 @@
+#!/usr/bin/env perl 
+
+use Getopt::Std;
+use strict;
+use warnings;
+
+our ($opt_4,$opt_6,$opt_a);
+getopts('46a');
+
+open (my $ip,"-|",qw(/sbin/ip addr)) || die "system: $!";
+
+my $if;
+my @out;
+while (<$ip>){
+	if (/^\d+:\s*(\S+):/){
+		$if=$1;
+	}
+	if (/\binet/){
+		chomp;
+		my $l=$_;
+		$l=~s/$if//;                 # Remove duplicate IF name
+		$l=~s/\bbrd\s+[0-9.:]+ //;   # Remove broadcast addr
+		next if ($l=~/inet6/ && ! ($opt_6 || $opt_a) );
+		next if ($l=~/inet / && $opt_6);
+		$l=~/(inet\S*)\s*(\S+)\s*(.*)/;
+		push @out,[$if,$1,$2,$3];
+	}
+}
+close($ip);
+
+my ($ifl,$adl,$ipl)=(0,0,0);
+for my $item (@out){
+  $ifl=length($item->[0]) if length($item->[0]) > $ifl;
+  $ipl=length($item->[2]) if length($item->[2]) > $ipl;
+  $adl=length($item->[1]) if length($item->[1]) > $adl;
+}
+
+
+for my $item (@out){
+  printf "%-${ifl}s %-${adl}s %-${ipl}s %s\n",$item->[0],$item->[1],$item->[2],$item->[3];
+}
