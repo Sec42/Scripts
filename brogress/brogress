@@ -15,7 +15,7 @@ msize=0
 mname=none
 size=0
 # Need to do it with tmpfile because of sh subshell stupidity
-lsof -s -F nfs 2>/dev/null| \
+lsof -s -F nfs / 2>/dev/null| \
 while read line ; do
     case $line in
 		p*) pid=${line#p};;
