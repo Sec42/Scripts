@@ -1,0 +1,37 @@
+#!/bin/sh
+
+set -e 
+[ ! -d ~/bin ] && mkdir ~/bin
+
+dir=$(dirname $0)
+
+abs=$(cd ${dir}; pwd)
+bin=$(cd ${HOME}/bin;pwd)
+
+if [ ! -e ${abs}/make_links ] ; then
+  echo "Could not find myself" >&2
+  exit 1
+fi
+
+par=${bin%/*}
+cur_rel=${cur#$par}
+
+if [ "${cur_rel}" != "${cur}" ] ; then
+  cur=..${cur_rel}
+else
+  cur=${abs}
+fi
+
+for a in brogress cidr dict encr ipa kurse timeout do_tty unicode-tool/u8 dns-debug/q ; do 
+  case $a in
+    */*) src=$a    ;;
+    *)   src=$a/$a ;;
+  esac
+  if [ -x ${abs}/${src} ] ; then
+    ln -fs ${cur}/${src} ${HOME}/bin/
+  else
+    echo "Executable $src not found, skipping." >&2
+  fi
+done
+
+echo "Done."
