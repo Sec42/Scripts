@@ -12,7 +12,7 @@ file=/usr/bin/gnome-keyring-daemon
 
 if [ "`dpkg-divert --truename $file`" = "$file" ] ; then
 	echo ''
-    echo '### Adding keyring-wrapper'
+	echo '### Adding keyring-wrapper'
 	echo '' 
 	dpkg-divert --add --rename --divert $file.real $file
 
@@ -21,7 +21,7 @@ if [ "`dpkg-divert --truename $file`" = "$file" ] ; then
 	chmod a+x $file
 else
 	echo ''
-    echo '### Removing existing keyring-wrapper'
+	echo '### Removing existing keyring-wrapper'
 	echo '' 
 	rm $file
 	dpkg-divert --remove --rename $file
