@@ -15,15 +15,19 @@ msize=0
 mname=none
 size=0
 # Need to do it with tmpfile because of sh subshell stupidity
-lsof -s -F nfs / 2>/dev/null| \
+lsof -s -F nafs / 2>/dev/null| \
 while read line ; do
     case $line in
 		p*) pid=${line#p};;
 		f*) fd=${line#f};;
+		a*) mode=${line#a};;
 		s*) size=${line#s};;
 		n*) name=${line#n}
 #			echo $pid $name $size / $mname $msize >&2
 			if [ "${fd}" = "txt" ] ; then
+				continue
+			fi
+			if [ "${mode}" != "r" ] ; then
 				continue
 			fi
 			if [ "${name}" = "/" ] ; then
