@@ -9,15 +9,20 @@
         lge = log --all --graph --pretty=format:'%C(auto)%h%d %s %C(bold blue)<%aN>%Creset' --abbrev-commit
         up = "!git remote update -p; git merge --ff-only @{u}"
         repull = pull --no-rebase
+        pop = stash pop --index
+        fixup = "!f() { TARGET=$(git rev-parse "$1"); git commit --fixup=$TARGET ${@:2} && EDITOR=true git rebase -i --autostash --autosquash $TARGET^; }; f"
         it = "!git init && git commit -m “root” --allow-empty"
         staash = stash --include-untracked
         pullf = "!git stash;git pull;git stash pop --index"
+        pushurl = "!f() {git remote set-url --push origin $(git remote get-url origin|sed 's!https://\\([^/]*\\)/!git@\\1:!')}"
+        fetchurl = "!f() {git remote set-url origin $(git remote get-url --push origin|sed 's!git@\\([^:]*\\):!https://\\1/!')}"
 [push]
         default = simple
 [pull]
         rebase = preserve
 [rebase]
         autostash = true
+        autosquash = true
 [diff]
         indentHeuristic = true
 [stash]
