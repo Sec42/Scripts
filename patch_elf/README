@@ -1,0 +1,4 @@
+Sample script on how to patch an elf object (.o)
+
+Replaces a single call in a specific function
+(the new call/symbol must already exist in the same .o)
