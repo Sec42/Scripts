@@ -1,0 +1,20 @@
+#!/bin/sh
+if [ ! -d /usr/share/xfce4/backdrops ] ; then
+  echo directory missing >&2
+  exit 1
+fi
+
+if [ "$(id -u)" -ne "0" ] ; then
+  echo need to run as root >&2
+  exit 1
+fi
+
+cd /usr/share/xfce4/backdrops
+
+if [ ! -f xubuntu-xenial.png ] ; then
+  echo xenial wallpaper missing >&2
+  exit 1
+fi
+
+rm xubuntu-wallpaper.png
+ln -s xubuntu-xenial.png xubuntu-wallpaper.png
