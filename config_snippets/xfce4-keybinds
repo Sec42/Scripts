@@ -7,10 +7,17 @@ while read key command ; do
 done << EOF
 Print                 true
 <Shift>Print          xfce4-screenshooter -f
+<Shift>Multi_key      xfce4-screenshooter -f
+<Alt>Multi_key        xfce4-screenshooter -w
 <Super>d              /home/sec/bin/dpy
 <Super>r              dmenu_run -i -l 10 -fn 9x15
 <Super>x              xterm
 <Super>l              xflock4
-<Control><Alt>k       sh -c "xdotool search --class keepass2 windowmap %1 || keepass2"
+<Super>k       sh -c "xdotool search --name 'Master .*- KeePassXC' windowmap %1 || keepassxc"
 <Control><Alt>a       keepass2 --auto-type
+<Super>F2             /home/sec/bin/loud -5
+<Super>F3             /home/sec/bin/loud +5
+<Super>F5             /home/sec/bin/bright 1
+<Super>F6             /home/sec/bin/bright +30
 EOF
+#<Control><Alt>k       sh -c "xdotool search --class keepass2 windowmap %1 || keepass2"
