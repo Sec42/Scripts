@@ -1,0 +1,19 @@
+#!/bin/sh
+
+### turn off nvidia on suspend
+
+file=/usr/lib/systemd/system-sleep/suspend-modules
+
+cat << 'EOM' > ${file}
+#!/bin/sh
+
+case "$1" in
+  pre)
+    /usr/sbin/rmmod nvidia_drm nvidia_uvm nvidia_modeset nvidia
+    [ -e /proc/acpi/bbswitch ] && echo OFF > /proc/acpi/bbswitch
+    ;;
+esac
+EOM
+
+chmod 0755 ${file}
+chown root:root ${file}
