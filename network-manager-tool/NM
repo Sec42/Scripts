@@ -1,0 +1,139 @@
+#!/bin/sh
+
+# Simple NetworkManager tool
+
+lines=`nmcli -t -f state,device d status |sed -n 's/^connected://p' | grep -Ev '^(docker|br-)'|wc -l`
+
+if [ "$lines" -ne "1" ] ; then
+	echo "Found $lines devices active. Sorry, have to die." >&2
+	exit 1
+fi
+
+dev=`nmcli -t -f state,device d status |sed -n 's/^connected://p' | grep -Ev '^(docker|br-)'`
+
+echo "Current device is:  $dev"
+
+devstr=`nmcli -t -f DEVICE,NAME,UUID c show |grep "^$dev"`
+net=$(echo "$devstr" | cut -d : -f 2)
+uuid=$(echo "$devstr" | cut -d : -f 3)
+
+echo "Current network is: $net ($uuid)"
+echo
+
+dwim=0
+if [ X"$1" = X"-f" ] ; then
+	dwim=1
+	shift
+fi
+
+case "$1" in 
+	help)
+		echo Valid commands:
+		echo
+		echo list all
+		echo dns mac search
+		echo edit do
+		exit 0
+		;;
+	list)
+		echo Active CONN config:
+		nmcli -f IPV4 c show $uuid
+		echo
+		echo Active DEV config:
+		nmcli -f IP4 dev show $dev
+		nmcli -f IP6 dev show $dev
+		exit 0
+		;;
+	all)
+		echo Active DEV config:
+		nmcli -f all dev show $dev
+		echo
+		echo
+		echo
+		echo Active CONN config:
+		nmcli -f all c show $uuid
+		exit 0
+		;;
+	dns)
+		echo Active value:
+		nmcli -f IP4.DNS dev show $dev
+
+		if [ -z "$2" ] ; then 
+			exit 0
+		fi
+		new=$2
+		if [ "$new" = "google" ] ; then
+			new=8.8.8.8
+		fi
+
+		if [ "$new" = "no" -o "$new" = "none" -o "$new" = "default" ] ; then
+			nmcli c mod $uuid ipv4.dns ''
+			nmcli c mod $uuid ipv4.ignore-auto-dns no
+		else
+			nmcli c mod $uuid ipv4.dns $new
+			nmcli c mod $uuid ipv4.ignore-auto-dns yes
+		fi
+		echo NEW config:
+		nmcli -f ipv4.dns c show $uuid
+		;;
+	mac)
+		echo Active value:
+		nmcli -f GENERAL.HWADDR dev show $dev
+		oui=`nmcli -f GENERAL.HWADDR dev show $dev | awk '{print $2}'`
+		oui=${oui%:*:*:*}
+
+		if [ -z "$2" ] ; then 
+			exit 0
+		fi
+
+		new=$2
+		if [ "$new" = "fnew" -o "$new" = "full" ] ; then
+			new=`printf '%02x' $((0x$(od /dev/urandom -N1 -t x1 -An | cut -c 2-) & 0xFE | 0x02)); od /dev/urandom -N5 -t x1 -An | sed 's/ /:/g'`
+		else if [ "$new" = "new" ] ; then
+			new=${oui}`od /dev/urandom -N3 -t x1 -An | sed 's/ /:/g'`
+		fi
+		fi
+
+		if [ "$new" = "no" -o "$new" = "none" -o "$new" = "default" ] ; then
+			nmcli c mod $uuid 802-11-wireless.cloned-mac-address ''
+		else
+			nmcli c mod $uuid 802-11-wireless.cloned-mac-address $new
+		fi
+		echo NEW config:
+		nmcli -f 802-11-wireless.cloned-mac-address c show $uuid
+		;;
+	edit)
+		nmcli c edit $uuid
+		;;
+	do|up)
+		nmcli c up $uuid
+		;;
+	search)
+		echo current config:
+		nmcli -f ipv4.dns-search c show $uuid
+		if [ -z "$2" ] ; then 
+			exit 0
+		fi
+		if [ ! -z "$2" ] ; then 
+			new=$2
+			[ "$new" = "no" -o "$new" = "none" ] && new=""
+			nmcli c mod $uuid ipv4.dns-search "$new"
+		fi
+		echo NEW config:
+		nmcli -f ipv4.dns-search c show $uuid
+		;;
+	*)
+		echo "Unknown command $1" >&2
+		exit 1
+		;;
+esac
+
+
+if [ "$dwim" = 1 ] ; then
+	echo "Reconfiguring..."
+	nmcli c up $uuid
+else
+	echo "Make active with \"$0 do\""
+fi
+
+exit 0
