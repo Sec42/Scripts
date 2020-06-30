@@ -9,13 +9,15 @@ if [ ! -x "$(which dc)" ] ; then
   exit 1
 fi
 
+fslist=$(mount |awk '/\//{print $3}'|grep -Ev '^/(sys|dev|run|proc|boot)')
+
 gfile(){
 #tfile=`mktemp`
 msize=0
 mname=none
 size=0
 # Need to do it with tmpfile because of sh subshell stupidity
-lsof -s -F nafs / 2>/dev/null| \
+lsof -s -F nafs $fslist 2>/dev/null| \
 while read line ; do
     case $line in
 		p*) pid=${line#p};;
