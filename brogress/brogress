@@ -12,7 +12,6 @@ fi
 fslist=$(mount |awk '/\//{print $3}'|grep -Ev '^/(sys|dev|run|proc|boot)')
 
 gfile(){
-#tfile=`mktemp`
 msize=0
 mname=none
 size=0
@@ -140,6 +139,7 @@ end(){
 	echo
 	echo
 	echo -n "Abort!"
+	rm ${tfile}
 	$termcap && tput ce ve || (tput el ;tput cnorm)
 	echo
 	exit
