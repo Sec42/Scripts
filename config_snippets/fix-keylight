@@ -1,0 +1,22 @@
+#!/bin/sh
+
+### turn on keylight on resume during the night
+
+file=/usr/lib/systemd/system-sleep/wakeup-backlight
+
+cat << 'EOM' > ${file}
+#!/bin/sh
+
+hr=$(date +%H)
+
+case "$1" in
+  post)
+	if [ "$hr" -lt 5 -o "$hr" -gt 19 ] ; then
+		echo "2" > /sys/class/leds/tpacpi::kbd_backlight/brightness
+	fi
+    ;;
+esac
+EOM
+
+chmod 0755 ${file}
+chown root:root ${file}
