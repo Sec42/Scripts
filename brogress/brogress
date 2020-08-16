@@ -25,6 +25,8 @@ while read line ; do
 		s*) size=${line#s};;
 		n*) name=${line#n}
 #			echo $pid $name $size / $mname $msize >&2
+			rsize=${size}
+			size=0
 			if [ "${fd}" = "txt" ] ; then
 				continue
 			fi
@@ -43,11 +45,10 @@ while read line ; do
 			if [ "${name%.so}" != "${name}" ] ; then
 				continue
 			fi
-			if [ $size -gt $msize ] ; then
-				msize=$size
+			if [ $rsize -gt $msize ] ; then
+				msize=$rsize
 				mname=$name
 			fi
-			size=0
 			name=undef
 			echo $mname
 			;;
