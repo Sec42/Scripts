@@ -69,7 +69,7 @@ if [ X"$file" = X"-a" ] ; then
 	auto=$autodelay
 fi
 
-size=$(wc -c $file|awk '{print $1}')
+size=$(wc -c "$file"|awk '{print $1}')
 
 process(){
 	off=$1
@@ -150,7 +150,7 @@ alm(){
 	nfile=$(gfile)
 	if [ "${nfile}" != "${file}" ] ; then
 		file=$nfile
-		size=$(wc -c $file|awk '{print $1}')
+		size=$(wc -c "$file"|awk '{print $1}')
 		$termcap && tput cl vi || (tput clear ; tput civis)
 		echo "Progress for file: ${file##*/} ($size)"
 	fi
