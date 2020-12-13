@@ -14,12 +14,12 @@
         it = "!git init && git commit -m “root” --allow-empty"
         staash = stash --include-untracked
         pullf = "!git stash;git pull;git stash pop --index"
-        pushurl = "!f() {git remote set-url --push origin $(git remote get-url origin|sed 's!https://\\([^/]*\\)/!git@\\1:!')}"
-        fetchurl = "!f() {git remote set-url origin $(git remote get-url --push origin|sed 's!git@\\([^:]*\\):!https://\\1/!')}"
+        pushurl = "!f() { git remote set-url --push origin $(git remote get-url origin|sed 's!https://\\([^/]*\\)/!git@\\1:!'); }; f"
+        fetchurl = "!f() { git remote set-url origin $(git remote get-url --push origin|sed 's!git@\\([^:]*\\):!https://\\1/!'); }; f"
 [push]
         default = simple
 [pull]
-        rebase = preserve
+        rebase = merges
 [rebase]
         autostash = true
         autosquash = true
