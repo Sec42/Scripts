@@ -1,0 +1,60 @@
+---
+# Setup the way i like it
+# ansible-galaxy collection install community.general
+
+- hosts: localhost
+  gather_facts: no
+  become: yes
+
+  tasks:
+  - name: get rid of nano
+    apt:
+      name: nano
+      state: absent
+
+  - name: fix apt behavior
+    copy:
+      content: |
+              // Recommends are as of now still abused in many packages
+              APT::Install-Recommends "0";
+              APT::Install-Suggests "0";
+      dest: /etc/apt/apt.conf.d/42suggestfix
+
+  - name: install some basics
+    apt:
+      name:
+        - screen
+        - git
+        - zsh
+        - vim
+        - sudo
+      state: present
+
+  - name: fix sudo behavior
+    copy:
+      content: |
+              Defaults env_keep += "HOME"
+      dest: /etc/sudoers.d/env-fix
+
+  - name: ensure locale is fine
+    # locale-gen de_DE de_DE.UTF-8
+    community.general.locale_gen:
+      name: '{{ item }}'
+      state: present
+    loop:
+      - de_DE
+      - de_DE.UTF-8
+
+  - name: disable suspending
+    lineinfile:
+      path: /etc/systemd/logind.conf
+      state: present
+      regexp: '^{{ item }}='
+      line: '{{ item }}=ignore'
+      insertafter: '#{{item}}='
+    loop:
+      - HandleSuspendKey
+      - HandleHibernateKey
+      - HandleLidSwitch
+      - HandleLidSwitchExternalPower
+      - HandleLidSwitchDocked
