@@ -13,7 +13,7 @@ Print                 true
 <Super>r              dmenu_run -i -l 10 -fn 9x15
 <Super>x              xterm
 <Super>l              xflock4
-<Super>k       sh -c "xdotool search --name 'Master .*- KeePassXC' windowmap windowraise || keepassxc"
+<Super>k       sh -c "xdotool search --name 'Master .*- KeePassXC' windowactivate || keepassxc"
 <Control><Alt>a       keepass2 --auto-type
 <Super>F2             /home/sec/bin/loud -5
 <Super>F3             /home/sec/bin/loud +5
