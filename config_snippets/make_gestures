@@ -1,0 +1,18 @@
+#!/bin/sh
+
+sudo usermod -a -G input "$USER"
+sudo apt-get install wmctrl xdotool
+
+git clone https://github.com/bulletmark/libinput-gestures.git
+cd libinput-gestures
+sudo ./libinput-gestures-setup install
+
+cat << EOM > ~/.config/libinput-gestures.conf
+gesture swipe right	vp_switch +
+gesture swipe left vp_switch -
+#gesture swipe right _internal ws_up
+#gesture swipe left _internal ws_down
+timeout 1
+EOM
+
+# libinput-gestures -v

@@ -1,0 +1,35 @@
+sudo apt-get install compiz compizconfig-settings-manager dconf-cli
+
+if [ ! -d "/usr/share/themes/Greybird/metacity-1" ] ; then
+   echo "Theme missing" >&2
+   exit 1
+fi
+
+dconf write /org/gnome/desktop/wm/preferences/theme "'Greybird'"
+dconf write /org/gnome/desktop/wm/preferences/button-layout "'appmenu:minimize,maximize,close'"
+
+cat << EOM > ~/.config/compiz-1/compizconfig/Default.ini
+[core]
+s0_active_plugins = core;composite;opengl;compiztoolbox;decor;move;place;regex;resize;snap;staticswitcher;wall;animation;expo;
+s0_click_to_focus = false
+s0_autoraise = false
+s0_hsize = 4
+s0_window_menu_button = <Alt>Button2
+
+[resize]
+s0_maximize_vertically = false
+s0_initiate_button = <Alt>Button3
+
+[vpswitch]
+s0_initiate_button = Disabled
+
+[wall]
+s0_show_switcher = false
+
+[fade]
+
+[snap]
+s0_snap_type = 0;
+EOM
+
+# compiz --replace

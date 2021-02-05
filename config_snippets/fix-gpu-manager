@@ -1,0 +1,20 @@
+#!/bin/sh
+
+file=/usr/bin/gpu-manager
+
+if [ "`dpkg-divert --truename $file`" = "$file" ] ; then
+	echo ''
+	echo '### Disabling gpu-manager'
+	echo '' 
+	dpkg-divert --add --rename --divert $file.real $file
+
+	echo '#!/bin/sh'>$file
+	echo 'exit 0' >>$file
+	chmod a+x $file
+else
+	echo ''
+	echo '### Re-enabling gpu-manager'
+	echo '' 
+	rm $file
+	dpkg-divert --remove --rename $file
+fi
