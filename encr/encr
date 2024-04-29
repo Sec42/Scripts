@@ -4,15 +4,26 @@ srand(time ^ $$);
 
 if ($ARGV[1]){
 	$b=$ARGV[1];
-	if($b=~/^\d+$/){
+	if($b=~/^(\d+|y)$/){
 		$b="\$$b\$";
 	};
 	if($b=~/^\$\d+\$$/){
 		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
 		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
 	};
+	if($b=~/^\$y\$$/){
+		$b.= 'j9T$';
+		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
+		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
+		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
+		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
+		$b.= $a[rand($#a)].$a[rand($#a)].$a[rand($#a)].$a[rand($#a)];
+		$b.= $a[rand($#a)].'.';
+	};
 }else{
 	$b="$a[rand($#a)]$a[rand($#a)]";
 };
+
+print "Salt: $b\n";
 
 print crypt($ARGV[0], $b),"\n";

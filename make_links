@@ -22,7 +22,7 @@ else
   cur=${abs}
 fi
 
-for a in brogress cidr dict encr ipa kurse timeout do_tty unicode-tool/u8 dns-debug/q ; do 
+for a in brogress cidr dict encr ipa kurse timeout do_tty network-manager-tool/NM unicode-tool/u8 dns-debug/q ; do
   case $a in
     */*) src=$a    ;;
     *)   src=$a/$a ;;
