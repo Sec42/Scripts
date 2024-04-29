@@ -1,0 +1,4 @@
+#!/bin/sh
+
+sudo zfs set org.debian:periodic-scrub=disable xdata
+sudo zfs set org.debian:periodic-scrub=disable data

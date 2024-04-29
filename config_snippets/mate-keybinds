@@ -1,0 +1,23 @@
+#!/bin/sh
+where='/commands/custom'
+
+cnt=0
+while read key command ; do
+	echo Set: $key
+	
+	dconf write /org/mate/desktop/keybindings/custom$cnt/binding "'$key'"
+	dconf write /org/mate/desktop/keybindings/custom$cnt/action "'$command'"
+	dconf write /org/mate/desktop/keybindings/custom$cnt/name "'$command'"
+
+	cnt=$(expr $cnt + 1)
+
+done << EOF
+<Mod4>r              dmenu_run -i -l 10 -fn 9x15
+<Mod4>x              xterm
+<Control>Print       mate-screenshot -w
+<Mod4>k              /home/sec/bin/kpfront
+<Mod4>F2             /home/sec/bin/loud -5
+<Mod4>F3             /home/sec/bin/loud +5
+<Mod4>F5             /home/sec/bin/bright 1
+<Mod4>F6             /home/sec/bin/bright +20
+EOF

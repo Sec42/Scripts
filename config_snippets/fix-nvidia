@@ -1,0 +1,21 @@
+#!/bin/sh
+systemctl disable nvidia-persistenced.service
+cd /usr/share/X11/xorg.conf.d/
+mv 10-nvidia.conf 10-nvidia.conf.off
+rm 11-nvidia-prime.conf
+
+file=/etc/modprobe.d/nvidia.conf
+
+cat << 'EOM' > ${file}
+#options bbswitch load_state=0
+blacklist nvidia
+blacklist nvidia_uvm
+blacklist nvidia_drm
+blacklist nvidia_modeset
+EOM
+
+chmod 0644 ${file}
+chown root:root ${file}
+(END)
+
+

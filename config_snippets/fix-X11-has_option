@@ -1,0 +1,33 @@
+cat << EOM | sudo tee /etc/X11/Xsession.d/01x11-has_option >/dev/null
+# This file is sourced by Xsession(5), not executed.
+#
+# workaround created by Settel
+# defines "has_option" unless it is already defined
+# see https://bugs.launchpad.net/ubuntu/+source/xorg/+bug/1922414
+#
+
+
+if type -t has_option >/dev/null; then
+  return
+fi
+
+
+OPTIONS="$(
+  if [ -r "$OPTIONFILE" ]; then
+    cat "$OPTIONFILE"
+  fi
+  if [ -d /etc/X11/Xsession.options.d ]; then
+    run-parts --list --regex '\.conf$' /etc/X11/Xsession.options.d | xargs -d '\n' cat
+  fi
+)"
+
+has_option() {
+  # Ensure that a later no-foo overrides an earlier foo
+  if [ "$(echo "$OPTIONS" | grep -Eo "^(no-)?$1\>" | tail -n 1)" = "$1" ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+EOM
