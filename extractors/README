@@ -1,0 +1,8 @@
+extract_tiif.py:
+tries to deconstruct a tiif file.
+
+extract_uboot.py:
+extracts files from a u-boot "Multi-File Image"
+
+ubootimagedump.py:
+understands u-boot header & extracts the content (while checking crc)
