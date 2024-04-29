@@ -1,0 +1,119 @@
+#!/usr/bin/perl
+#
+# vim:set ts=4 sw=4:
+
+use strict;
+use warnings;
+use v5.14;
+use Term::Cap;
+use Time::HiRes qw(gettimeofday tv_interval);
+
+my $terminal = Tgetent Term::Cap {TERM => undef, OSPEED=> undef};
+
+sub scale{
+	my $num=shift;
+	my $fac=0;
+	while ($num > 1024){
+		$num/=1024;
+		$fac++;
+	};
+
+	my $suff=qw(B kB MB GB TB)[$fac];
+
+	my $fmt;
+	if ($num>100 || $fac==0){
+		$fmt="%4.0f%2s";
+	}elsif($num>10) {
+		$fmt="%3.1f%2s";
+	}else{
+		$fmt="%3.2f%2s";
+	};
+
+	return sprintf $fmt,$num,$suff;
+};
+
+sub get_files{
+	open(my $lsof, "-|", "lsof -s -F nfs /");
+	my ($pid, $size, $fd, $name);
+	my @size;
+	while(<$lsof>){
+		if (/^p(.*)/)	{ $pid= $1}
+		elsif (/^s(.*)/)	{ $size=$1}
+		elsif (/^f(.*)/)	{ $fd=  $1}
+		elsif (/^n(.*)/)	{ $name=$1;
+						push @size,{
+							fd   => $fd,
+							name => $name,
+							size => $size,	
+							pid  => $pid,
+						};
+						}
+		else			{ die "Unparseable line from lsof: $_"}
+	}
+	return \@size;
+};
+
+sub get_cmds{
+	my $file=shift;
+	open(my $lsof, "-|", "lsof -o -F co '$file'");
+
+	my ($pid, $off, $fd, $cmd);
+	my @cmds;
+	while(<$lsof>){
+		if (/^p(.*)/)	{ $pid= $1}
+		elsif (/^c(.*)/)	{ $cmd=$1}
+		elsif (/^o(.*)/)	{ $off=$1;
+						$off=$1 if $off =~ /0t(.*)/;
+						$off=hex $1 if $off =~ /0x(.*)/;
+						push @cmds,{
+							cmd => $cmd,
+							off => $off,	
+							pid  => $pid,
+						};
+						}
+		else			{ die "Unparseable line from lsof: $_"}
+	}
+	return \@cmds;
+};
+
+my $sizes=get_files();
+
+my @bigs=sort {$b->{size} <=> $a->{size}} grep { $_->{fd} ne "txt" && $_->{name} !~ m!^(?:/usr)?/lib! && $_->{name} !~ m! \(deleted\)!} @$sizes;
+
+my $file=$bigs[0]->{name};
+my $size=$bigs[0]->{size};
+
+$terminal->Trequire(qw/cl vi ce ve ho do cd/);
+print $terminal->Tputs('vi',1);
+
+print $terminal->Tputs('cl',1);
+print "$file ($size)\n";
+
+sub end{
+print $terminal->Tputs('cd',1);
+print $terminal->Tputs('ve',1);
+exit;
+};
+$SIG{INT}=\&end;
+
+$!=1;
+
+my $t0=[gettimeofday];
+my $s0=0;
+
+while(1){
+	print $terminal->Tputs('ho',1);
+	print $terminal->Tputs('do',1);
+	my $cmds=get_cmds($file);
+	my $t1 = [gettimeofday];
+	my $elapsed = tv_interval ( $t0, $t1);
+	$t0=$t1;
+	for my $cmd (@$cmds){
+		printf "%s (%s): %5.1f%% %sps (%d)",$cmd->{cmd},$cmd->{pid},$cmd->{off}/$size*100,scale(($cmd->{off}-$s0)/$elapsed),$cmd->{off};
+		$s0=$cmd->{off};
+		print $terminal->Tputs('ce',1),"\n";
+	};
+	print $terminal->Tputs('cd',1);
+	sleep(1);
+};
+end;
