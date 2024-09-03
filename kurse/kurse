@@ -97,8 +97,8 @@ UAH 0 Ukrainian hryvna
 $chg='
 USD $
 EUR \e
-JPY ¥
-GBP £
+JPY Â¥
+GBP Â£
 CAD CA$
 AUD AU$
 ';
