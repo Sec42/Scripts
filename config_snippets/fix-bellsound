@@ -1,0 +1,15 @@
+file=/usr/share/sounds/Yaru/stereo/bell.oga
+
+if [ "`dpkg-divert --truename $file`" = "$file" ] ; then
+	echo ''
+	echo '### Adding custom bell'
+	echo ''
+	dpkg-divert --add --rename --divert $file.orig $file
+	ffmpeg -loglevel error -i ${file}.orig -filter:a "volume=0.10" -f ogg $file
+else
+	echo ''
+	echo '### Removing custom bell sound'
+	echo ''
+	rm $file
+	dpkg-divert --remove --rename $file
+fi
