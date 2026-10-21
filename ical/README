@@ -1,0 +1,16 @@
+ics2txt.py:
+prints the events of an ics file as text.
+
+ldjson2ics.py:
+extracts schema.org ld+json reservations (hotel, flight, train, ...)
+from an email and converts them to ics.
+
+ics2caldav.py:
+uploads the events of an ics file to a CalDAV calendar.
+Give server (or calendar) URL, user and calendar name (-u/-U/-c or CALDAV_URL,
+CALDAV_USER, CALDAV_CALENDAR in ~/.config/ics2caldav) and it discovers the
+collection URL; -l lists the calendars. Password from CALDAV_PASSCMD,
+~/.netrc or prompt.
+
+mutt macro to add a reservation mail to the calendar:
+macro index,pager \ec "<pipe-message>ldjson2ics | ics2caldav<enter>" "add reservation to calendar"

@@ -23,7 +23,7 @@ else
 fi
 
 for a in brogress cidr dict encr ipa kurse timeout do_tty network-manager-tool/NM unicode-tool/u8 dns-debug/q \
-ical/ics2txt.py \
+ical/ics2txt.py ical/ldjson2ics.py ical/ics2caldav.py \
 ; do
   case $a in
     */*) src=$a    ;;
